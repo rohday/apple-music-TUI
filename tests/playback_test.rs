@@ -42,20 +42,29 @@ async fn test_playback_engine_mock_commands() {
         url: None,
     };
 
-    engine.send_command(PlaybackCommand::PlaySong(song.clone())).await.unwrap();
+    engine
+        .send_command(PlaybackCommand::PlaySong(song.clone()))
+        .await
+        .unwrap();
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
     let status = engine.get_current_status().await;
     assert_eq!(status.state, PlaybackState::Playing);
     assert_eq!(status.current_song.as_ref().map(|s| &s.id), Some(&song.id));
 
-    engine.send_command(PlaybackCommand::TogglePlayPause).await.unwrap();
+    engine
+        .send_command(PlaybackCommand::TogglePlayPause)
+        .await
+        .unwrap();
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
     let status = engine.get_current_status().await;
     assert_eq!(status.state, PlaybackState::Paused);
 
-    engine.send_command(PlaybackCommand::SetVolume(90)).await.unwrap();
+    engine
+        .send_command(PlaybackCommand::SetVolume(90))
+        .await
+        .unwrap();
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
     let status = engine.get_current_status().await;

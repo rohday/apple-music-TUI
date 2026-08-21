@@ -21,7 +21,12 @@ pub fn render_sidebar(f: &mut Frame, area: Rect, state: &AppState) {
                 ratatui::style::Style::default().fg(Theme::TEXT_PRIMARY)
             };
             ListItem::new(Line::from(vec![
-                Span::styled(symbol, ratatui::style::Style::default().fg(Theme::ACCENT).add_modifier(ratatui::style::Modifier::BOLD)),
+                Span::styled(
+                    symbol,
+                    ratatui::style::Style::default()
+                        .fg(Theme::ACCENT)
+                        .add_modifier(ratatui::style::Modifier::BOLD),
+                ),
                 Span::styled(view.display_name(), style),
             ]))
         })

@@ -22,7 +22,10 @@ async fn test_end_to_end_mock_pipeline() {
 
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     let status = playback.get_current_status().await;
-    assert_eq!(status.current_song.as_ref().map(|s| &s.id), Some(&song_to_play.id));
+    assert_eq!(
+        status.current_song.as_ref().map(|s| &s.id),
+        Some(&song_to_play.id)
+    );
 }
 
 #[tokio::test]

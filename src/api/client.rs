@@ -94,7 +94,12 @@ impl AppleMusicClient {
             id: String,
         }
         let list: RawListResponse<StorefrontItem> = resp.json().await?;
-        Ok(list.data.into_iter().next().map(|s| s.id).unwrap_or_else(|| "us".to_string()))
+        Ok(list
+            .data
+            .into_iter()
+            .next()
+            .map(|s| s.id)
+            .unwrap_or_else(|| "us".to_string()))
     }
 
     pub async fn search_catalog(&self, query: &str, storefront: &str) -> Result<SearchResults> {
@@ -120,7 +125,10 @@ impl AppleMusicClient {
             bail!("Authentication failed (401 Unauthorized)");
         }
 
-        let raw: RawCatalogResponse = resp.json().await.context("Failed to parse catalog search JSON")?;
+        let raw: RawCatalogResponse = resp
+            .json()
+            .await
+            .context("Failed to parse catalog search JSON")?;
         Ok(SearchResults::from(raw))
     }
 
@@ -134,10 +142,7 @@ impl AppleMusicClient {
             .client
             .get(&url)
             .headers(self.auth_headers())
-            .query(&[
-                ("limit", limit.to_string()),
-                ("offset", offset.to_string()),
-            ])
+            .query(&[("limit", limit.to_string()), ("offset", offset.to_string())])
             .send()
             .await
             .context("Failed to fetch library songs")?;
@@ -146,7 +151,8 @@ impl AppleMusicClient {
             bail!("Authentication required for library access");
         }
 
-        let list: RawListResponse<Song> = resp.json().await.context("Failed to parse library songs")?;
+        let list: RawListResponse<Song> =
+            resp.json().await.context("Failed to parse library songs")?;
         Ok(list.data)
     }
 
@@ -160,10 +166,7 @@ impl AppleMusicClient {
             .client
             .get(&url)
             .headers(self.auth_headers())
-            .query(&[
-                ("limit", limit.to_string()),
-                ("offset", offset.to_string()),
-            ])
+            .query(&[("limit", limit.to_string()), ("offset", offset.to_string())])
             .send()
             .await?;
 
@@ -181,10 +184,7 @@ impl AppleMusicClient {
             .client
             .get(&url)
             .headers(self.auth_headers())
-            .query(&[
-                ("limit", limit.to_string()),
-                ("offset", offset.to_string()),
-            ])
+            .query(&[("limit", limit.to_string()), ("offset", offset.to_string())])
             .send()
             .await?;
 
@@ -206,7 +206,8 @@ impl AppleMusicClient {
             .await
             .context("Failed to fetch library playlists")?;
 
-        let list: RawListResponse<Playlist> = resp.json().await.context("Failed to parse playlists")?;
+        let list: RawListResponse<Playlist> =
+            resp.json().await.context("Failed to parse playlists")?;
         Ok(list.data)
     }
 
@@ -256,10 +257,17 @@ impl AppleMusicClient {
             .context("Failed to create playlist")?;
 
         let list: RawListResponse<Playlist> = resp.json().await?;
-        list.data.into_iter().next().context("No playlist returned in response")
+        list.data
+            .into_iter()
+            .next()
+            .context("No playlist returned in response")
     }
 
-    pub async fn add_tracks_to_playlist(&self, playlist_id: &str, track_ids: &[&str]) -> Result<()> {
+    pub async fn add_tracks_to_playlist(
+        &self,
+        playlist_id: &str,
+        track_ids: &[&str],
+    ) -> Result<()> {
         if self.mock_mode {
             return Ok(());
         }

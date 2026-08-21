@@ -2,11 +2,29 @@
 
 A fast, lightweight, and responsive Terminal User Interface (TUI) client for Apple Music on Linux. Built with Rust, Ratatui, Tokio, and Chrome DevTools Protocol.
 
+```
++------------------------------------------------------------------------+
+| appleTUI v0.1.0                     [AUTH]              Storefront: IN |
++-------------------+----------------------------------------------------+
+|  > Search         |  #  Title               Artist            Duration |
+|    Library Songs  | -------------------------------------------------- |
+|    Albums         |  >  A&W                 Lana Del Rey          7:13 |
+|    Artists        |  2  Aashiqana           Chaar Diwaari         6:43 |
+|    Playlists      |  3  Achilles Come Down  Gang of Youths        7:02 |
+|    Recently Played|  4  The Adults Are Talk The Strokes           5:09 |
++-------------------+----------------------------------------------------+
+| [PLAY] A&W - Lana Del Rey                       1:45 / 7:13            |
+| [p] |<<  [Space] >/||  [n] >>|  [s] Shuffle: Off  [r] Repeat: Off  Vol:80% |
+| ========================----------------------------                   |
++------------------------------------------------------------------------+
+```
+
 ---
 
 ## Features
 
 - **Real-Time Streaming**: Plays Apple Music streams directly through PipeWire / PulseAudio on Linux.
+- **Pure ASCII Aesthetic**: Clean, high-contrast monospace UI with bold red accents (`cmus`/`ncspot` feel). Zero emoji alignment bugs.
 - **Search & Catalog Exploration**: Search songs, albums, artists, and playlists with instant keyboard filtering.
 - **Library Management**: Browse personal library tracks, albums, artists, recently played history, and playlists.
 - **Playlist Management**: View playlist tracks, create new playlists (`c`), add tracks to playlists (`a`).
@@ -91,6 +109,7 @@ If you prefer extracting the token from your browser manually:
 | Key | Action |
 |---|---|
 | `/` | Open Search Prompt |
+| `R` / `F5` | Refresh Library / Playlists from Apple Music |
 | `c` | Create New Playlist (in Playlists view) |
 | `a` | Add selected track to a Playlist |
 | `?` | Toggle Help & Keybinding Overlay |
@@ -109,25 +128,25 @@ Configuration files are stored in `~/.config/appletui/`:
 ## Architecture
 
 ```
-┌────────────────────────────────────────────────────────┐
-│                        appleTUI                        │
-│                                                        │
-│  ┌──────────────┐    ┌──────────────┐   ┌────────────┐ │
-│  │   UI Layer   │    │  API Client  │   │  Playback  │ │
-│  │  (Ratatui +  │◄──►│ (reqwest REST│◄─►│   Engine   │ │
-│  │  Crossterm)  │    │ Apple Music) │   │ (CDP / JS) │ │
-│  └──────┬───────┘    └──────┬───────┘   └─────┬──────┘ │
-│         │                   │                 │        │
-│         ▼                   ▼                 ▼        │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │              AppState & Event Channel            │  │
-│  └──────────────────────────────────────────────────┘  │
-└───────────────────────────┬────────────────────────────┘
-                            │ (Lifecycle bound)
-                            ▼
++--------------------------------------------------------+
+|                        appleTUI                        |
+|                                                        |
+|  +--------------+    +--------------+   +------------+ |
+|  |   UI Layer   |    |  API Client  |   |  Playback  | |
+|  |  (Ratatui +  |<-->| (reqwest REST|<->|   Engine   | |
+|  |  Crossterm)  |    | Apple Music) |   | (CDP / JS) | |
+|  +------+-------+    +------+-------+   +-----+------+ |
+|         |                   |                 |        |
+|         v                   v                 v        |
+|  +--------------------------------------------------+  |
+|  |              AppState & Event Channel            |  |
+|  +--------------------------------------------------+  |
++---------------------------+----------------------------+
+                            | (Lifecycle bound)
+                            v
               [Headless Chromium / Brave]
-                            │ (Widevine EME Audio)
-                            ▼
+                            | (Widevine EME Audio)
+                            v
                   [PipeWire / PulseAudio]
 ```
 

@@ -27,9 +27,14 @@ async fn test_client_creation_and_mock_mode() {
     let pl_tracks = client.get_playlist_tracks("pl1").await.unwrap();
     assert!(!pl_tracks.is_empty());
 
-    let new_pl = client.create_playlist("My Test Playlist", Some("Description")).await.unwrap();
+    let new_pl = client
+        .create_playlist("My Test Playlist", Some("Description"))
+        .await
+        .unwrap();
     assert_eq!(new_pl.name, "My Test Playlist");
 
-    let add_res = client.add_tracks_to_playlist(&new_pl.id, &["s1", "s2"]).await;
+    let add_res = client
+        .add_tracks_to_playlist(&new_pl.id, &["s1", "s2"])
+        .await;
     assert!(add_res.is_ok());
 }

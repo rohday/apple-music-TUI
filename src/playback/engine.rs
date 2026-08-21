@@ -27,11 +27,7 @@ impl PlaybackEngine {
         if mock_mode {
             info!("Initializing mock playback engine");
             let cur_status_clone = current_status.clone();
-            tokio::spawn(run_mock_playback_loop(
-                cmd_rx,
-                status_tx,
-                cur_status_clone,
-            ));
+            tokio::spawn(run_mock_playback_loop(cmd_rx, status_tx, cur_status_clone));
             return Ok(Self {
                 cmd_sender: cmd_tx,
                 status_receiver: Arc::new(Mutex::new(status_rx)),
@@ -44,11 +40,7 @@ impl PlaybackEngine {
         if bin.is_none() {
             warn!("No browser binary found, falling back to mock playback engine");
             let cur_status_clone = current_status.clone();
-            tokio::spawn(run_mock_playback_loop(
-                cmd_rx,
-                status_tx,
-                cur_status_clone,
-            ));
+            tokio::spawn(run_mock_playback_loop(cmd_rx, status_tx, cur_status_clone));
             return Ok(Self {
                 cmd_sender: cmd_tx,
                 status_receiver: Arc::new(Mutex::new(status_rx)),

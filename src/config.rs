@@ -73,8 +73,8 @@ impl Config {
     pub fn load_from(path: &Path) -> Result<Self> {
         let content = fs::read_to_string(path)
             .with_context(|| format!("Failed to read config file at {:?}", path))?;
-        let config: Config = serde_json::from_str(&content)
-            .with_context(|| "Failed to parse config JSON")?;
+        let config: Config =
+            serde_json::from_str(&content).with_context(|| "Failed to parse config JSON")?;
         Ok(config)
     }
 
@@ -119,8 +119,8 @@ impl AuthConfig {
     pub fn load_from(path: &Path) -> Result<Self> {
         let content = fs::read_to_string(path)
             .with_context(|| format!("Failed to read auth file at {:?}", path))?;
-        let auth: AuthConfig = serde_json::from_str(&content)
-            .with_context(|| "Failed to parse auth JSON")?;
+        let auth: AuthConfig =
+            serde_json::from_str(&content).with_context(|| "Failed to parse auth JSON")?;
         Ok(auth)
     }
 

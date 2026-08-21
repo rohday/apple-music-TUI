@@ -14,10 +14,7 @@ pub fn render_modals(f: &mut Frame, area: Rect, state: &AppState) {
             f.render_widget(Clear, popup);
 
             let block = Block::default()
-                .title(Span::styled(
-                    " Search Apple Music ",
-                    Theme::title_style(),
-                ))
+                .title(Span::styled(" Search Apple Music ", Theme::title_style()))
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(Theme::ACCENT));
 
@@ -43,10 +40,7 @@ pub fn render_modals(f: &mut Frame, area: Rect, state: &AppState) {
             f.render_widget(Clear, popup);
 
             let block = Block::default()
-                .title(Span::styled(
-                    " Create New Playlist ",
-                    Theme::title_style(),
-                ))
+                .title(Span::styled(" Create New Playlist ", Theme::title_style()))
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(Theme::ACCENT));
 
@@ -90,12 +84,8 @@ pub fn render_modals(f: &mut Frame, area: Rect, state: &AppState) {
                     } else {
                         Style::default().fg(Theme::TEXT_PRIMARY)
                     };
-                    ListItem::new(format!(
-                        "  {} {}",
-                        if is_sel { ">" } else { " " },
-                        pl.name
-                    ))
-                    .style(style)
+                    ListItem::new(format!("  {} {}", if is_sel { ">" } else { " " }, pl.name))
+                        .style(style)
                 })
                 .collect();
 

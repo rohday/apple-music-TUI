@@ -126,10 +126,7 @@ pub fn render_player_bar(f: &mut Frame, area: Rect, state: &AppState) {
             shuffle_style,
         ),
         Span::styled(
-            format!(
-                "[r] Repeat: {}   ",
-                state.playback.repeat.display_label()
-            ),
+            format!("[r] Repeat: {}   ", state.playback.repeat.display_label()),
             repeat_style,
         ),
         Span::raw(format!("[+/-] Vol: {}%", state.playback.volume)),

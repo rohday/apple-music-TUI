@@ -33,13 +33,22 @@ fn test_config_save_and_load() {
     auth.save_to(&auth_path).unwrap();
 
     let loaded_auth = AuthConfig::load_from(&auth_path).unwrap();
-    assert_eq!(loaded_auth.developer_token.as_deref(), Some("dev_token_123"));
-    assert_eq!(loaded_auth.music_user_token.as_deref(), Some("user_token_abc"));
+    assert_eq!(
+        loaded_auth.developer_token.as_deref(),
+        Some("dev_token_123")
+    );
+    assert_eq!(
+        loaded_auth.music_user_token.as_deref(),
+        Some("user_token_abc")
+    );
     assert!(loaded_auth.is_authenticated());
 }
 
 #[test]
 fn test_find_browser_binary() {
     let browser = find_browser_binary();
-    assert!(browser.is_some(), "Should find a chromium-compatible browser (e.g. brave-browser)");
+    assert!(
+        browser.is_some(),
+        "Should find a chromium-compatible browser (e.g. brave-browser)"
+    );
 }

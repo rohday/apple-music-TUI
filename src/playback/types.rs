@@ -59,7 +59,13 @@ impl PlaybackStatus {
     pub fn formatted_position(&self) -> String {
         let cur = self.current_time_secs as u64;
         let dur = self.duration_secs as u64;
-        format!("{}:{:02} / {}:{:02}", cur / 60, cur % 60, dur / 60, dur % 60)
+        format!(
+            "{}:{:02} / {}:{:02}",
+            cur / 60,
+            cur % 60,
+            dur / 60,
+            dur % 60
+        )
     }
 }
 

@@ -34,7 +34,9 @@ pub async fn fetch_live_developer_token() -> Result<String> {
             if let Some(end) = js[start..].find('\"') {
                 let token = &js[start..start + end];
                 if token.starts_with("eyJ") {
-                    info!("Successfully extracted live developer token from Apple Music web bundle");
+                    info!(
+                        "Successfully extracted live developer token from Apple Music web bundle"
+                    );
                     return Ok(token.to_string());
                 }
             }
@@ -51,7 +53,9 @@ pub async fn launch_interactive_login() -> Result<AuthConfig> {
     info!("Launching browser for Apple Music login: {:?}", browser_bin);
 
     // Fetch live developer token concurrently
-    let dev_token = fetch_live_developer_token().await.unwrap_or_else(|_| DEFAULT_FALLBACK_DEVELOPER_TOKEN.to_string());
+    let dev_token = fetch_live_developer_token()
+        .await
+        .unwrap_or_else(|_| DEFAULT_FALLBACK_DEVELOPER_TOKEN.to_string());
 
     let profile_dir = Config::get_profile_dir()?;
 

@@ -63,7 +63,9 @@ impl<'de> Deserialize<'de> for Song {
         Ok(Song {
             id: raw.id,
             name: attrs.name.unwrap_or_else(|| "Unknown Title".to_string()),
-            artist_name: attrs.artist_name.unwrap_or_else(|| "Unknown Artist".to_string()),
+            artist_name: attrs
+                .artist_name
+                .unwrap_or_else(|| "Unknown Artist".to_string()),
             album_name: attrs.album_name,
             duration_in_millis: attrs.duration_in_millis.unwrap_or(0),
             track_number: attrs.track_number,
@@ -116,7 +118,9 @@ impl<'de> Deserialize<'de> for Album {
         Ok(Album {
             id: raw.id,
             name: attrs.name.unwrap_or_else(|| "Unknown Album".to_string()),
-            artist_name: attrs.artist_name.unwrap_or_else(|| "Unknown Artist".to_string()),
+            artist_name: attrs
+                .artist_name
+                .unwrap_or_else(|| "Unknown Artist".to_string()),
             track_count: attrs.track_count,
             release_date: attrs.release_date,
         })
@@ -210,7 +214,9 @@ impl<'de> Deserialize<'de> for Playlist {
 
         Ok(Playlist {
             id: raw.id,
-            name: attrs.name.unwrap_or_else(|| "Untitled Playlist".to_string()),
+            name: attrs
+                .name
+                .unwrap_or_else(|| "Untitled Playlist".to_string()),
             description: desc,
             is_public: attrs.is_public,
             track_count: attrs.track_count,
