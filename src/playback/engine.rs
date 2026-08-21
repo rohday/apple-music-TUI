@@ -227,10 +227,7 @@ async fn run_browser_playback_loop(
     status_store: Arc<Mutex<PlaybackStatus>>,
 ) -> Result<()> {
     let profile_dir = crate::config::Config::get_profile_dir()?;
-    let lock_file = profile_dir.join("SingletonLock");
-    if lock_file.exists() {
-        let _ = std::fs::remove_file(&lock_file);
-    }
+    crate::config::Config::clean_stale_browser_locks(&profile_dir);
 
     let config = BrowserConfig::builder()
         .user_data_dir(&profile_dir)

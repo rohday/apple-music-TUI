@@ -52,7 +52,17 @@ impl Config {
     pub fn get_profile_dir() -> Result<PathBuf> {
         let dir = Self::get_config_dir()?.join("browser_profile");
         fs::create_dir_all(&dir)?;
+        Self::clean_stale_browser_locks(&dir);
         Ok(dir)
+    }
+
+    pub fn clean_stale_browser_locks(profile_dir: &Path) {
+        for name in &["SingletonLock", "SingletonCookie", "SingletonSocket"] {
+            let p = profile_dir.join(name);
+            if p.symlink_metadata().is_ok() {
+                let _ = fs::remove_file(&p);
+            }
+        }
     }
 
     pub fn default_config_path() -> Result<PathBuf> {

@@ -58,12 +58,7 @@ pub async fn launch_interactive_login() -> Result<AuthConfig> {
         .unwrap_or_else(|_| DEFAULT_FALLBACK_DEVELOPER_TOKEN.to_string());
 
     let profile_dir = Config::get_profile_dir()?;
-
-    // Clean up stale lock if any
-    let lock_file = profile_dir.join("SingletonLock");
-    if lock_file.exists() {
-        let _ = std::fs::remove_file(&lock_file);
-    }
+    Config::clean_stale_browser_locks(&profile_dir);
 
     // Launch non-headless (visible) browser window for user to sign in
     let config = BrowserConfig::builder()
