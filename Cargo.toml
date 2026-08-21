@@ -1,10 +1,19 @@
 [package]
-name = "apple-tui"
+name = "appletui"
 version = "0.1.0"
 edition = "2021"
-authors = ["Samyak <samyak@local>"]
+authors = ["Samyak"]
 description = "Fast, lightweight Apple Music Terminal User Interface for Linux"
-license = "MIT OR Apache-2.0"
+license = "MIT"
+default-run = "appletui"
+
+[lib]
+name = "apple_tui"
+path = "src/lib.rs"
+
+[[bin]]
+name = "appletui"
+path = "src/main.rs"
 
 [dependencies]
 tokio = { version = "1.43", features = ["full"] }
