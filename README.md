@@ -1,4 +1,4 @@
-# appletui
+# appletui (vibecoded for myself)
 
 A minimalist, high-contrast Apple Music TUI for Linux. Built with Rust, Ratatui, and Tokio.
 
