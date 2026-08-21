@@ -27,14 +27,14 @@ impl ActiveView {
 
     pub fn display_name(&self) -> &'static str {
         match self {
-            ActiveView::Search => "🔍 Search",
-            ActiveView::LibrarySongs => "♪ Library Songs",
-            ActiveView::LibraryAlbums => "💽 Albums",
-            ActiveView::LibraryArtists => "👤 Artists",
-            ActiveView::Playlists => "📁 Playlists",
-            ActiveView::PlaylistDetail => "📁 Playlist Tracks",
-            ActiveView::RecentlyPlayed => "🕒 Recently Played",
-            ActiveView::Queue => "📜 Queue",
+            ActiveView::Search => "Search",
+            ActiveView::LibrarySongs => "Library Songs",
+            ActiveView::LibraryAlbums => "Albums",
+            ActiveView::LibraryArtists => "Artists",
+            ActiveView::Playlists => "Playlists",
+            ActiveView::PlaylistDetail => "Playlist Tracks",
+            ActiveView::RecentlyPlayed => "Recently Played",
+            ActiveView::Queue => "Queue",
         }
     }
 }

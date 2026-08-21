@@ -47,11 +47,11 @@ pub fn draw(f: &mut Frame, state: &AppState) {
 
 fn render_header(f: &mut Frame, area: Rect, state: &AppState) {
     let auth_status = if state.is_authenticated {
-        Span::styled(" [● Authenticated] ", Style::default().fg(Color::Green))
+        Span::styled(" [AUTH] ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))
     } else {
         Span::styled(
-            " [○ Unauthenticated / Mock Mode] ",
-            Style::default().fg(Color::Yellow),
+            " [MOCK/UNAUTH] ",
+            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
         )
     };
 

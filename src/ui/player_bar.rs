@@ -42,10 +42,10 @@ pub fn render_player_bar(f: &mut Frame, area: Rect, state: &AppState) {
     };
 
     let status_icon = match state.playback.state {
-        PlaybackState::Playing => " ▶ ",
-        PlaybackState::Paused => " ⏸ ",
-        PlaybackState::Loading => " ⌛ ",
-        PlaybackState::Stopped => " ⏹ ",
+        PlaybackState::Playing => " [PLAY] ",
+        PlaybackState::Paused => " [PAUSE] ",
+        PlaybackState::Loading => " [LOAD] ",
+        PlaybackState::Stopped => " [STOP] ",
     };
 
     let time_info = state.playback.formatted_position();
@@ -64,7 +64,7 @@ pub fn render_player_bar(f: &mut Frame, area: Rect, state: &AppState) {
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
-            format!("— {} ", artist_album),
+            format!("- {} ", artist_album),
             Style::default().fg(Theme::TEXT_MUTED),
         ),
     ]);
@@ -115,24 +115,24 @@ pub fn render_player_bar(f: &mut Frame, area: Rect, state: &AppState) {
     };
 
     let controls_line = Line::from(vec![
-        Span::raw("[p] ◁◁  "),
-        Span::raw("[Space] ▶/⏸  "),
-        Span::raw("[n] ▷▷   "),
+        Span::raw("[p] |<<  "),
+        Span::raw("[Space] >/||  "),
+        Span::raw("[n] >>|   "),
         Span::styled(
             format!(
-                "[s] 🔀 Shuffle: {}   ",
+                "[s] Shuffle: {}   ",
                 if state.playback.shuffle { "On" } else { "Off" }
             ),
             shuffle_style,
         ),
         Span::styled(
             format!(
-                "[r] 🔁 Repeat: {}   ",
+                "[r] Repeat: {}   ",
                 state.playback.repeat.display_label()
             ),
             repeat_style,
         ),
-        Span::raw(format!("[+/-] 🔊 Volume: {}%", state.playback.volume)),
+        Span::raw(format!("[+/-] Vol: {}%", state.playback.volume)),
     ]);
 
     f.render_widget(Paragraph::new(controls_line), chunks[2]);

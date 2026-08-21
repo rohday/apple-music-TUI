@@ -52,7 +52,7 @@ pub fn render_main_view(f: &mut Frame, area: Rect, state: &AppState) {
                         .unwrap_or(false);
 
                     let num_prefix = if is_playing {
-                        "▶".to_string()
+                        ">".to_string()
                     } else {
                         format!("{:>2}", idx + 1)
                     };

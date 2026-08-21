@@ -21,7 +21,7 @@ pub fn render_modals(f: &mut Frame, area: Rect, state: &AppState) {
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(Theme::ACCENT));
 
-            let input_text = format!(" Query: {}█", state.text_input_buffer);
+            let input_text = format!(" Query: {}_", state.text_input_buffer);
             let instructions = "\n Press [Enter] to Search, [Esc] to Cancel";
 
             let paragraph = Paragraph::new(vec![
@@ -50,7 +50,7 @@ pub fn render_modals(f: &mut Frame, area: Rect, state: &AppState) {
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(Theme::ACCENT));
 
-            let input_text = format!(" Name: {}█", state.text_input_buffer);
+            let input_text = format!(" Name: {}_", state.text_input_buffer);
             let instructions = "\n Press [Enter] to Confirm, [Esc] to Cancel";
 
             let paragraph = Paragraph::new(vec![
@@ -92,7 +92,7 @@ pub fn render_modals(f: &mut Frame, area: Rect, state: &AppState) {
                     };
                     ListItem::new(format!(
                         "  {} {}",
-                        if is_sel { "▸" } else { " " },
+                        if is_sel { ">" } else { " " },
                         pl.name
                     ))
                     .style(style)
