@@ -1,8 +1,8 @@
 use anyhow::Result;
 use apple_tui::api::client::AppleMusicClient;
 use apple_tui::app::state::AppState;
-use apple_tui::auth::login::launch_interactive_login;
-use apple_tui::config::{AuthConfig, Config};
+use apple_tui::auth::login::{fetch_live_developer_token, launch_interactive_login};
+use apple_tui::config::{AuthConfig, Config, DEFAULT_FALLBACK_DEVELOPER_TOKEN};
 use apple_tui::events::handle_key_event;
 use apple_tui::playback::engine::PlaybackEngine;
 use apple_tui::playback::types::PlaybackCommand;
@@ -93,7 +93,15 @@ async fn main() -> Result<()> {
         config.browser_path = Some(p);
     }
 
-    let auth = AuthConfig::load();
+    let mut auth = AuthConfig::load();
+    if auth.developer_token.is_none() && auth.is_authenticated() {
+        let dev_token = fetch_live_developer_token()
+            .await
+            .unwrap_or_else(|_| DEFAULT_FALLBACK_DEVELOPER_TOKEN.to_string());
+        auth.developer_token = Some(dev_token);
+        let _ = auth.save();
+    }
+
     let is_auth = auth.is_authenticated() || config.mock_mode;
 
     let client = if config.mock_mode {
@@ -130,8 +138,13 @@ async fn main() -> Result<()> {
     state.volume = config.volume;
 
     // Preload initial library songs & playlists
-    if let Ok(songs) = client.get_library_songs(50, 0).await {
-        state.songs = songs;
+    match client.get_library_songs(100, 0).await {
+        Ok(songs) => {
+            state.songs = songs;
+        }
+        Err(e) => {
+            state.set_status(format!("Error loading library: {}", e));
+        }
     }
     if let Ok(playlists) = client.get_library_playlists().await {
         state.playlists = playlists;

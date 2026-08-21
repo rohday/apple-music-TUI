@@ -1,15 +1,57 @@
-use crate::config::{find_browser_binary, AuthConfig, Config};
+use crate::config::{find_browser_binary, AuthConfig, Config, DEFAULT_FALLBACK_DEVELOPER_TOKEN};
 use anyhow::{bail, Context, Result};
 use chromiumoxide::browser::{Browser, BrowserConfig};
 use futures::StreamExt;
+use reqwest::Client;
 use std::time::Duration;
 use tracing::{debug, info};
+
+pub async fn fetch_live_developer_token() -> Result<String> {
+    let client = Client::builder()
+        .user_agent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        .build()?;
+
+    let html = client
+        .get("https://music.apple.com/us/browse")
+        .send()
+        .await?
+        .text()
+        .await?;
+
+    // Search for /assets/index~*.js
+    let mut js_url = None;
+    for line in html.split('\"') {
+        if line.starts_with("/assets/index~") && line.ends_with(".js") {
+            js_url = Some(format!("https://music.apple.com{}", line));
+            break;
+        }
+    }
+
+    if let Some(url) = js_url {
+        let js = client.get(&url).send().await?.text().await?;
+        if let Some(pos) = js.find("$c=\"") {
+            let start = pos + 4;
+            if let Some(end) = js[start..].find('\"') {
+                let token = &js[start..start + end];
+                if token.starts_with("eyJ") {
+                    info!("Successfully extracted live developer token from Apple Music web bundle");
+                    return Ok(token.to_string());
+                }
+            }
+        }
+    }
+
+    Ok(DEFAULT_FALLBACK_DEVELOPER_TOKEN.to_string())
+}
 
 pub async fn launch_interactive_login() -> Result<AuthConfig> {
     let browser_bin = find_browser_binary()
         .context("No supported Chromium/Brave browser found for login flow")?;
 
     info!("Launching browser for Apple Music login: {:?}", browser_bin);
+
+    // Fetch live developer token concurrently
+    let dev_token = fetch_live_developer_token().await.unwrap_or_else(|_| DEFAULT_FALLBACK_DEVELOPER_TOKEN.to_string());
 
     let profile_dir = Config::get_profile_dir()?;
 
@@ -75,7 +117,7 @@ pub async fn launch_interactive_login() -> Result<AuthConfig> {
 
     if let Some(token) = user_token {
         let auth = AuthConfig {
-            developer_token: None, // Will use default fallback developer token
+            developer_token: Some(dev_token),
             music_user_token: Some(token),
         };
         auth.save()?;

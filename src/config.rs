@@ -12,7 +12,7 @@ const QUALIFIER: &str = "com";
 const ORGANIZATION: &str = "appleTUI";
 const APPLICATION: &str = "appleTUI";
 
-pub const DEFAULT_FALLBACK_DEVELOPER_TOKEN: &str = "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IldNVDNGM1dTMkQifQ.eyJpc3MiOiJNQTY2M1hTNEszIiwiaWF0IjoxNTc4OTQ2ODQyLCJleHAiOjE3NzA3NzA4NDJ9.b4sD8Q3N2P4dM9u2U9V4I9Vw3L7c3b2r1o5p9l9q2u4m3n5o1p6q8r9s0t1u2v3";
+pub const DEFAULT_FALLBACK_DEVELOPER_TOKEN: &str = "eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiIsImtpZCI6IldlYlBsYXlLaWQifQ.eyJpc3MiOiJBTVBXZWJQbGF5IiwiaWF0IjoxNzg2NjMyOTI0LCJleHAiOjE3OTI2ODA5MjQsInJvb3RfaHR0cHNfb3JpZ2luIjpbImFwcGxlLmNvbSJdfQ.hBgj61sZf-y7bmuvT-joXAUAcf7TVJ51732xnH5vFkLHOmsQHxVqGMYUuI4h8c0-RX3fRY3moylhLW8fewFJyw";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
