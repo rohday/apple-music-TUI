@@ -49,6 +49,12 @@ impl Config {
         }
     }
 
+    pub fn get_profile_dir() -> Result<PathBuf> {
+        let dir = Self::get_config_dir()?.join("browser_profile");
+        fs::create_dir_all(&dir)?;
+        Ok(dir)
+    }
+
     pub fn default_config_path() -> Result<PathBuf> {
         Ok(Self::get_config_dir()?.join("config.json"))
     }

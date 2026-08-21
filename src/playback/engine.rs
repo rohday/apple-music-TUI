@@ -234,7 +234,17 @@ async fn run_browser_playback_loop(
     status_tx: Sender<PlaybackStatus>,
     status_store: Arc<Mutex<PlaybackStatus>>,
 ) -> Result<()> {
+    let profile_dir = crate::config::Config::get_profile_dir()?;
+    let lock_file = profile_dir.join("SingletonLock");
+    if lock_file.exists() {
+        let _ = std::fs::remove_file(&lock_file);
+    }
+
     let config = BrowserConfig::builder()
+        .user_data_dir(&profile_dir)
+        .arg("--no-first-run")
+        .arg("--no-default-browser-check")
+        .arg("--disable-sync")
         .arg("--autoplay-policy=no-user-gesture-required")
         .arg("--enable-widevine-cdm")
         .arg("--disable-gpu")
@@ -248,8 +258,7 @@ async fn run_browser_playback_loop(
     let handler_handle = tokio::spawn(async move {
         while let Some(h) = handler.next().await {
             if let Err(e) = h {
-                error!("Browser handler error: {:?}", e);
-                break;
+                tracing::debug!("Playback browser event debug: {:?}", e);
             }
         }
     });

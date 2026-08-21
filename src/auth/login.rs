@@ -1,9 +1,9 @@
-use crate::config::{find_browser_binary, AuthConfig};
+use crate::config::{find_browser_binary, AuthConfig, Config};
 use anyhow::{bail, Context, Result};
 use chromiumoxide::browser::{Browser, BrowserConfig};
 use futures::StreamExt;
 use std::time::Duration;
-use tracing::{info, warn};
+use tracing::{debug, info};
 
 pub async fn launch_interactive_login() -> Result<AuthConfig> {
     let browser_bin = find_browser_binary()
@@ -11,8 +11,23 @@ pub async fn launch_interactive_login() -> Result<AuthConfig> {
 
     info!("Launching browser for Apple Music login: {:?}", browser_bin);
 
-    // Launch non-headless browser window for user to sign in
+    let profile_dir = Config::get_profile_dir()?;
+
+    // Clean up stale lock if any
+    let lock_file = profile_dir.join("SingletonLock");
+    if lock_file.exists() {
+        let _ = std::fs::remove_file(&lock_file);
+    }
+
+    // Launch non-headless (visible) browser window for user to sign in
     let config = BrowserConfig::builder()
+        .with_head()
+        .user_data_dir(&profile_dir)
+        .arg("--no-first-run")
+        .arg("--no-default-browser-check")
+        .arg("--disable-sync")
+        .arg("--enable-widevine-cdm")
+        .arg("--autoplay-policy=no-user-gesture-required")
         .chrome_executable(browser_bin)
         .build()
         .map_err(|e| anyhow::anyhow!("Browser config error: {}", e))?;
@@ -21,31 +36,37 @@ pub async fn launch_interactive_login() -> Result<AuthConfig> {
     let handler_handle = tokio::spawn(async move {
         while let Some(h) = handler.next().await {
             if let Err(e) = h {
-                warn!("Login browser event error: {:?}", e);
-                break;
+                debug!("Login browser event debug: {:?}", e);
             }
         }
     });
 
     let page = browser.new_page("https://music.apple.com/login").await?;
-    info!("Opened login page. Waiting for user authorization...");
+    println!("Opened Apple Music login window.");
+    println!("Please sign in with your Apple ID in the browser window.");
+    println!("appleTUI is listening for your session token (waiting up to 3 minutes)...");
 
     let mut user_token: Option<String> = None;
-    let poll_limit = 120; // 2 minutes timeout
-    for _ in 0..poll_limit {
+    let poll_limit = 180; // 3 minutes timeout
+    for i in 0..poll_limit {
         tokio::time::sleep(Duration::from_secs(1)).await;
 
-        let cookies = page.get_cookies().await?;
-        for cookie in cookies {
-            if cookie.name == "media-user-token" {
-                user_token = Some(cookie.value);
-                break;
+        if let Ok(cookies) = page.get_cookies().await {
+            for cookie in cookies {
+                if cookie.name == "media-user-token" && !cookie.value.trim().is_empty() {
+                    user_token = Some(cookie.value);
+                    break;
+                }
             }
         }
 
         if user_token.is_some() {
-            info!("Captured media-user-token!");
+            println!("Successfully captured Apple Music user token!");
             break;
+        }
+
+        if (i + 1) % 15 == 0 {
+            println!("Still waiting for login... ({}s elapsed)", i + 1);
         }
     }
 
