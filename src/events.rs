@@ -183,6 +183,43 @@ pub async fn handle_key_event(
                 .await?;
             return Ok(());
         }
+        KeyCode::Char('R') | KeyCode::F(5) => {
+            state.set_status("Refreshing data from Apple Music...");
+            match state.active_view {
+                ActiveView::LibrarySongs => {
+                    if let Ok(songs) = client.get_library_songs(100, 0).await {
+                        state.songs = songs;
+                        state.set_status("Refreshed Library Songs");
+                    }
+                }
+                ActiveView::LibraryAlbums => {
+                    if let Ok(albums) = client.get_library_albums(100, 0).await {
+                        state.albums = albums;
+                        state.set_status("Refreshed Albums");
+                    }
+                }
+                ActiveView::LibraryArtists => {
+                    if let Ok(artists) = client.get_library_artists(100, 0).await {
+                        state.artists = artists;
+                        state.set_status("Refreshed Artists");
+                    }
+                }
+                ActiveView::Playlists => {
+                    if let Ok(playlists) = client.get_library_playlists().await {
+                        state.playlists = playlists;
+                        state.set_status("Refreshed Playlists");
+                    }
+                }
+                ActiveView::RecentlyPlayed => {
+                    if let Ok(recent) = client.get_recent_tracks().await {
+                        state.recent_tracks = recent;
+                        state.set_status("Refreshed Recently Played");
+                    }
+                }
+                _ => {}
+            }
+            return Ok(());
+        }
         KeyCode::Char('s') => {
             playback
                 .send_command(PlaybackCommand::ToggleShuffle)
