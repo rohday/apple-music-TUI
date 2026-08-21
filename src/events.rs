@@ -268,10 +268,8 @@ pub async fn handle_key_event(
                     state.open_add_to_playlist(song);
                 }
             }
-            KeyCode::Char('c') => {
-                if state.active_view == ActiveView::Playlists {
-                    state.open_create_playlist();
-                }
+            KeyCode::Char('c') if state.active_view == ActiveView::Playlists => {
+                state.open_create_playlist();
             }
             _ => {}
         },
@@ -282,39 +280,29 @@ pub async fn handle_key_event(
 
 async fn load_view_data(state: &mut AppState, client: &AppleMusicClient) -> Result<()> {
     match state.active_view {
-        ActiveView::LibrarySongs => {
-            if state.songs.is_empty() {
-                if let Ok(songs) = client.get_library_songs(100, 0).await {
-                    state.songs = songs;
-                }
+        ActiveView::LibrarySongs if state.songs.is_empty() => {
+            if let Ok(songs) = client.get_library_songs(100, 0).await {
+                state.songs = songs;
             }
         }
-        ActiveView::LibraryAlbums => {
-            if state.albums.is_empty() {
-                if let Ok(albums) = client.get_library_albums(100, 0).await {
-                    state.albums = albums;
-                }
+        ActiveView::LibraryAlbums if state.albums.is_empty() => {
+            if let Ok(albums) = client.get_library_albums(100, 0).await {
+                state.albums = albums;
             }
         }
-        ActiveView::LibraryArtists => {
-            if state.artists.is_empty() {
-                if let Ok(artists) = client.get_library_artists(100, 0).await {
-                    state.artists = artists;
-                }
+        ActiveView::LibraryArtists if state.artists.is_empty() => {
+            if let Ok(artists) = client.get_library_artists(100, 0).await {
+                state.artists = artists;
             }
         }
-        ActiveView::Playlists => {
-            if state.playlists.is_empty() {
-                if let Ok(playlists) = client.get_library_playlists().await {
-                    state.playlists = playlists;
-                }
+        ActiveView::Playlists if state.playlists.is_empty() => {
+            if let Ok(playlists) = client.get_library_playlists().await {
+                state.playlists = playlists;
             }
         }
-        ActiveView::RecentlyPlayed => {
-            if state.recent_tracks.is_empty() {
-                if let Ok(recent) = client.get_recent_tracks().await {
-                    state.recent_tracks = recent;
-                }
+        ActiveView::RecentlyPlayed if state.recent_tracks.is_empty() => {
+            if let Ok(recent) = client.get_recent_tracks().await {
+                state.recent_tracks = recent;
             }
         }
         _ => {}

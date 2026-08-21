@@ -285,7 +285,7 @@ async fn run_browser_playback_loop(
                     })()
                 "#;
                 if let Ok(eval_result) = page.evaluate(js_eval).await {
-                    if let Some(val) = eval_result.into_value::<serde_json::Value>().ok() {
+                    if let Ok(val) = eval_result.into_value::<serde_json::Value>() {
                         if val.get("ok").and_then(|v| v.as_bool()).unwrap_or(false) {
                             if let Some(playing) = val.get("isPlaying").and_then(|v| v.as_bool()) {
                                 status.state = if playing {

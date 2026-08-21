@@ -15,9 +15,11 @@ fn test_config_save_and_load() {
     let config_path = tmp.path().join("config.json");
     let auth_path = tmp.path().join("auth.json");
 
-    let mut cfg = Config::default();
-    cfg.volume = 65;
-    cfg.storefront = "jp".to_string();
+    let cfg = Config {
+        volume: 65,
+        storefront: "jp".to_string(),
+        ..Default::default()
+    };
     cfg.save_to(&config_path).unwrap();
 
     let loaded = Config::load_from(&config_path).unwrap();

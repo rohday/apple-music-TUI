@@ -4,11 +4,13 @@ use apple_tui::playback::types::{PlaybackCommand, PlaybackState, PlaybackStatus,
 
 #[test]
 fn test_playback_status_progress() {
-    let mut status = PlaybackStatus::default();
-    status.state = PlaybackState::Playing;
-    status.current_time_secs = 60.0;
-    status.duration_secs = 180.0;
-    status.volume = 75;
+    let status = PlaybackStatus {
+        state: PlaybackState::Playing,
+        current_time_secs: 60.0,
+        duration_secs: 180.0,
+        volume: 75,
+        ..Default::default()
+    };
 
     assert_eq!(status.progress_ratio(), 60.0 / 180.0);
     assert_eq!(status.formatted_position(), "1:00 / 3:00");
