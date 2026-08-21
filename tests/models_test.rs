@@ -1,6 +1,4 @@
-use apple_tui::api::models::{
-    Album, Artist, Playlist, RawCatalogResponse, SearchResults, Song,
-};
+use apple_tui::api::models::{RawCatalogResponse, SearchResults, Song};
 
 #[test]
 fn test_song_deserialization() {

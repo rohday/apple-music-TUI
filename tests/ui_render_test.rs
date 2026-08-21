@@ -1,4 +1,4 @@
-use apple_tui::api::models::{Album, Artist, Playlist, Song};
+use apple_tui::api::models::{Playlist, Song};
 use apple_tui::app::state::{ActiveView, AppState, FocusedPanel, ModalState};
 use apple_tui::playback::types::{PlaybackState, PlaybackStatus, RepeatMode};
 use apple_tui::ui::draw;
