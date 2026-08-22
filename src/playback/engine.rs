@@ -255,10 +255,39 @@ async fn run_browser_playback_loop(
     let page = browser.new_page("https://music.apple.com").await?;
     info!("Navigated to Apple Music web player");
 
+    // Inject active user authentication token cookies into browser session
+    let auth = crate::config::AuthConfig::load();
+    if let Some(user_token) = &auth.music_user_token {
+        use chromiumoxide::cdp::browser_protocol::network::CookieParam;
+        if let Ok(c1) = CookieParam::builder()
+            .name("media-user-token")
+            .value(user_token)
+            .domain(".music.apple.com")
+            .path("/")
+            .secure(true)
+            .build()
+        {
+            let _ = page.set_cookie(c1).await;
+        }
+        if let Ok(c2) = CookieParam::builder()
+            .name("media-user-token")
+            .value(user_token)
+            .domain(".apple.com")
+            .path("/")
+            .secure(true)
+            .build()
+        {
+            let _ = page.set_cookie(c2).await;
+        }
+    }
+
     let mut status = PlaybackStatus {
         volume: 80,
         ..Default::default()
     };
+
+    let mut current_queue: Vec<Song> = Vec::new();
+    let mut current_queue_idx: usize = 0;
 
     let mut poll_interval = tokio::time::interval(Duration::from_millis(500));
 
@@ -316,14 +345,31 @@ async fn run_browser_playback_loop(
                         status.current_time_secs = 0.0;
                         status.state = PlaybackState::Playing;
 
-                        let pid = song.playback_id();
-                        let js = format!(
-                            "(() => {{ const mk = window.MusicKit ? window.MusicKit.getInstance() : null; if (mk) {{ mk.setQueue({{ song: '{}' }}).then(() => mk.play()).catch(() => {{ mk.setQueue({{ songs: ['{}'] }}).then(() => mk.play()); }}); }} }})();",
-                            pid, pid
-                        );
-                        let _ = page.evaluate(js).await;
+                        let track_url = song.url.clone().unwrap_or_else(|| {
+                            format!("https://music.apple.com/in/album/{}", song.playback_id())
+                        });
+
+                        let _ = page.goto(&track_url).await;
+                        tokio::time::sleep(Duration::from_millis(1500)).await;
+
+                        let trigger_js = r#"
+                            (() => {
+                                const playBtn = document.querySelector('button[aria-label*="Play"]') ||
+                                                document.querySelector('.inline-play-button') ||
+                                                document.querySelector('[data-testid="play-button"]');
+                                if (playBtn) {
+                                    playBtn.click();
+                                } else if (window.MusicKit && window.MusicKit.getInstance()) {
+                                    window.MusicKit.getInstance().play();
+                                }
+                            })()
+                        "#;
+                        let _ = page.evaluate(trigger_js).await;
                     }
                     PlaybackCommand::SetQueueAndPlay(songs, idx) => {
+                        current_queue = songs.clone();
+                        current_queue_idx = idx;
+
                         if idx < songs.len() {
                             let song = &songs[idx];
                             status.current_song = Some(song.clone());
@@ -331,22 +377,39 @@ async fn run_browser_playback_loop(
                             status.current_time_secs = 0.0;
                             status.state = PlaybackState::Playing;
 
-                            let song_ids: Vec<String> = songs.iter().map(|s| format!("'{}'", s.playback_id())).collect();
-                            let js = format!(
-                                "(() => {{ const mk = window.MusicKit ? window.MusicKit.getInstance() : null; if (mk) {{ mk.setQueue({{ songs: [{}] }}, {}).then(() => mk.play()); }} }})();",
-                                song_ids.join(","), idx
-                            );
-                            let _ = page.evaluate(js).await;
+                            let track_url = song.url.clone().unwrap_or_else(|| {
+                                format!("https://music.apple.com/in/album/{}", song.playback_id())
+                            });
+
+                            let _ = page.goto(&track_url).await;
+                            tokio::time::sleep(Duration::from_millis(1500)).await;
+
+                            let trigger_js = r#"
+                                (() => {
+                                    const playBtn = document.querySelector('button[aria-label*="Play"]') ||
+                                                    document.querySelector('.inline-play-button') ||
+                                                    document.querySelector('[data-testid="play-button"]');
+                                    if (playBtn) {
+                                        playBtn.click();
+                                    } else if (window.MusicKit && window.MusicKit.getInstance()) {
+                                        window.MusicKit.getInstance().play();
+                                    }
+                                })()
+                            "#;
+                            let _ = page.evaluate(trigger_js).await;
                         }
                     }
                     PlaybackCommand::TogglePlayPause => {
-                        if status.state == PlaybackState::Playing {
-                            status.state = PlaybackState::Paused;
-                            let _ = page.evaluate("window.MusicKit && window.MusicKit.getInstance().pause();").await;
-                        } else {
-                            status.state = PlaybackState::Playing;
-                            let _ = page.evaluate("window.MusicKit && window.MusicKit.getInstance().play();").await;
-                        }
+                        let toggle_js = r#"
+                            (() => {
+                                const mk = window.MusicKit ? window.MusicKit.getInstance() : null;
+                                if (mk) {
+                                    if (mk.isPlaying) mk.pause();
+                                    else mk.play();
+                                }
+                            })()
+                        "#;
+                        let _ = page.evaluate(toggle_js).await;
                     }
                     PlaybackCommand::Pause => {
                         status.state = PlaybackState::Paused;
@@ -357,10 +420,60 @@ async fn run_browser_playback_loop(
                         let _ = page.evaluate("window.MusicKit && window.MusicKit.getInstance().play();").await;
                     }
                     PlaybackCommand::Next => {
-                        let _ = page.evaluate("window.MusicKit && window.MusicKit.getInstance().skipToNextItem();").await;
+                        if !current_queue.is_empty() && current_queue_idx + 1 < current_queue.len() {
+                            current_queue_idx += 1;
+                            let song = &current_queue[current_queue_idx];
+                            status.current_song = Some(song.clone());
+                            status.duration_secs = (song.duration_in_millis as f64) / 1000.0;
+                            status.current_time_secs = 0.0;
+                            status.state = PlaybackState::Playing;
+
+                            let track_url = song.url.clone().unwrap_or_else(|| {
+                                format!("https://music.apple.com/in/album/{}", song.playback_id())
+                            });
+                            let _ = page.goto(&track_url).await;
+                            tokio::time::sleep(Duration::from_millis(1500)).await;
+
+                            let _ = page.evaluate(r#"
+                                (() => {
+                                    const playBtn = document.querySelector('button[aria-label*="Play"]') ||
+                                                    document.querySelector('.inline-play-button') ||
+                                                    document.querySelector('[data-testid="play-button"]');
+                                    if (playBtn) playBtn.click();
+                                    else if (window.MusicKit && window.MusicKit.getInstance()) window.MusicKit.getInstance().play();
+                                })()
+                            "#).await;
+                        } else {
+                            let _ = page.evaluate("window.MusicKit && window.MusicKit.getInstance().skipToNextItem();").await;
+                        }
                     }
                     PlaybackCommand::Previous => {
-                        let _ = page.evaluate("window.MusicKit && window.MusicKit.getInstance().skipToPreviousItem();").await;
+                        if !current_queue.is_empty() && current_queue_idx > 0 {
+                            current_queue_idx -= 1;
+                            let song = &current_queue[current_queue_idx];
+                            status.current_song = Some(song.clone());
+                            status.duration_secs = (song.duration_in_millis as f64) / 1000.0;
+                            status.current_time_secs = 0.0;
+                            status.state = PlaybackState::Playing;
+
+                            let track_url = song.url.clone().unwrap_or_else(|| {
+                                format!("https://music.apple.com/in/album/{}", song.playback_id())
+                            });
+                            let _ = page.goto(&track_url).await;
+                            tokio::time::sleep(Duration::from_millis(1500)).await;
+
+                            let _ = page.evaluate(r#"
+                                (() => {
+                                    const playBtn = document.querySelector('button[aria-label*="Play"]') ||
+                                                    document.querySelector('.inline-play-button') ||
+                                                    document.querySelector('[data-testid="play-button"]');
+                                    if (playBtn) playBtn.click();
+                                    else if (window.MusicKit && window.MusicKit.getInstance()) window.MusicKit.getInstance().play();
+                                })()
+                            "#).await;
+                        } else {
+                            let _ = page.evaluate("window.MusicKit && window.MusicKit.getInstance().skipToPreviousItem();").await;
+                        }
                     }
                     PlaybackCommand::Seek(pos) => {
                         let js = format!("window.MusicKit && window.MusicKit.getInstance().seekToTime({});", pos);
