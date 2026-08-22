@@ -230,15 +230,15 @@ async fn run_browser_playback_loop(
     crate::config::Config::clean_stale_browser_locks(&profile_dir);
 
     let config = BrowserConfig::builder()
+        .with_head() // Prevents chromiumoxide from injecting --mute-audio and --ozone-platform=headless
         .user_data_dir(&profile_dir)
+        .arg("--headless=new")
         .arg("--no-first-run")
         .arg("--no-default-browser-check")
         .arg("--disable-sync")
         .arg("--autoplay-policy=no-user-gesture-required")
         .arg("--enable-widevine-cdm")
-        .arg("--disable-gpu")
         .arg("--no-sandbox")
-        .arg("--disable-setuid-sandbox")
         .chrome_executable(browser_path)
         .build()
         .map_err(|e| anyhow::anyhow!("BrowserConfig error: {}", e))?;
@@ -316,9 +316,10 @@ async fn run_browser_playback_loop(
                         status.current_time_secs = 0.0;
                         status.state = PlaybackState::Playing;
 
+                        let pid = song.playback_id();
                         let js = format!(
-                            "window.MusicKit && window.MusicKit.getInstance().setQueue({{ song: '{}' }}).then(() => window.MusicKit.getInstance().play());",
-                            song.id
+                            "(() => {{ const mk = window.MusicKit ? window.MusicKit.getInstance() : null; if (mk) {{ mk.setQueue({{ song: '{}' }}).then(() => mk.play()).catch(() => {{ mk.setQueue({{ songs: ['{}'] }}).then(() => mk.play()); }}); }} }})();",
+                            pid, pid
                         );
                         let _ = page.evaluate(js).await;
                     }
@@ -330,9 +331,9 @@ async fn run_browser_playback_loop(
                             status.current_time_secs = 0.0;
                             status.state = PlaybackState::Playing;
 
-                            let song_ids: Vec<String> = songs.iter().map(|s| format!("'{}'", s.id)).collect();
+                            let song_ids: Vec<String> = songs.iter().map(|s| format!("'{}'", s.playback_id())).collect();
                             let js = format!(
-                                "window.MusicKit && window.MusicKit.getInstance().setQueue({{ songs: [{}] }}, {}).then(() => window.MusicKit.getInstance().play());",
+                                "(() => {{ const mk = window.MusicKit ? window.MusicKit.getInstance() : null; if (mk) {{ mk.setQueue({{ songs: [{}] }}, {}).then(() => mk.play()); }} }})();",
                                 song_ids.join(","), idx
                             );
                             let _ = page.evaluate(js).await;

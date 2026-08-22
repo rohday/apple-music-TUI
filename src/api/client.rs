@@ -326,6 +326,7 @@ fn mock_search_results(query: &str) -> SearchResults {
                 track_number: Some(1),
                 release_date: Some("2020-03-20".to_string()),
                 url: None,
+                catalog_id: None,
             },
             Song {
                 id: "1002".to_string(),
@@ -336,6 +337,7 @@ fn mock_search_results(query: &str) -> SearchResults {
                 track_number: Some(9),
                 release_date: Some("2019-11-29".to_string()),
                 url: None,
+                catalog_id: None,
             },
             Song {
                 id: "1003".to_string(),
@@ -346,6 +348,7 @@ fn mock_search_results(query: &str) -> SearchResults {
                 track_number: Some(11),
                 release_date: Some("2020-03-20".to_string()),
                 url: None,
+                catalog_id: None,
             },
         ],
         albums: vec![
@@ -397,6 +400,7 @@ fn mock_library_songs() -> Vec<Song> {
             track_number: Some(2),
             release_date: Some("2011-10-18".to_string()),
             url: None,
+            catalog_id: None,
         },
         Song {
             id: "s2".to_string(),
@@ -407,6 +411,7 @@ fn mock_library_songs() -> Vec<Song> {
             track_number: Some(8),
             release_date: Some("2013-04-19".to_string()),
             url: None,
+            catalog_id: None,
         },
         Song {
             id: "s3".to_string(),
@@ -417,6 +422,7 @@ fn mock_library_songs() -> Vec<Song> {
             track_number: Some(7),
             release_date: Some("2014-07-01".to_string()),
             url: None,
+            catalog_id: None,
         },
     ]
 }
@@ -486,6 +492,7 @@ fn mock_playlist_tracks(playlist_id: &str) -> Vec<Song> {
             track_number: Some(2),
             release_date: Some("2013-02-22".to_string()),
             url: None,
+            catalog_id: None,
         });
     }
     songs

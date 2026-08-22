@@ -25,6 +25,31 @@ fn test_song_deserialization() {
     assert_eq!(song.album_name.as_deref(), Some("After Hours"));
     assert_eq!(song.duration_in_millis, 200040);
     assert_eq!(song.formatted_duration(), "3:20");
+    assert_eq!(song.playback_id(), "1440857781");
+}
+
+#[test]
+fn test_library_song_play_params() {
+    let json = r#"{
+        "id": "i.RBrxWXmHYbA5BbA",
+        "type": "library-songs",
+        "attributes": {
+            "name": "A&W",
+            "artistName": "Lana Del Rey",
+            "durationInMillis": 433916,
+            "playParams": {
+                "id": "i.RBrxWXmHYbA5BbA",
+                "kind": "song",
+                "isLibrary": true,
+                "catalogId": "1655349125"
+            }
+        }
+    }"#;
+
+    let song: Song = serde_json::from_str(json).unwrap();
+    assert_eq!(song.id, "i.RBrxWXmHYbA5BbA");
+    assert_eq!(song.catalog_id.as_deref(), Some("1655349125"));
+    assert_eq!(song.playback_id(), "1655349125");
 }
 
 #[test]

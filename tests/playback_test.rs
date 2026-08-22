@@ -37,9 +37,10 @@ async fn test_playback_engine_mock_commands() {
         artist_name: "Test Artist".to_string(),
         album_name: Some("Test Album".to_string()),
         duration_in_millis: 180000,
-        track_number: Some(1),
+        track_number: None,
         release_date: None,
         url: None,
+        catalog_id: None,
     };
 
     engine

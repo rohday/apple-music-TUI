@@ -10,6 +10,7 @@ pub struct Song {
     pub track_number: Option<u32>,
     pub release_date: Option<String>,
     pub url: Option<String>,
+    pub catalog_id: Option<String>,
 }
 
 impl Song {
@@ -19,6 +20,15 @@ impl Song {
         let seconds = total_seconds % 60;
         format!("{}:{:02}", minutes, seconds)
     }
+
+    pub fn playback_id(&self) -> &str {
+        if let Some(cat_id) = &self.catalog_id {
+            if !cat_id.trim().is_empty() {
+                return cat_id.as_str();
+            }
+        }
+        self.id.as_str()
+    }
 }
 
 #[derive(Deserialize)]
@@ -26,6 +36,16 @@ struct RawSong {
     id: String,
     #[serde(default)]
     attributes: Option<SongAttributes>,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq, Default)]
+pub struct PlayParams {
+    pub id: Option<String>,
+    pub kind: Option<String>,
+    #[serde(rename = "catalogId")]
+    pub catalog_id: Option<String>,
+    #[serde(rename = "reportingId")]
+    pub reporting_id: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -42,6 +62,8 @@ struct SongAttributes {
     #[serde(rename = "releaseDate")]
     release_date: Option<String>,
     url: Option<String>,
+    #[serde(rename = "playParams")]
+    play_params: Option<PlayParams>,
 }
 
 impl<'de> Deserialize<'de> for Song {
@@ -58,7 +80,12 @@ impl<'de> Deserialize<'de> for Song {
             track_number: None,
             release_date: None,
             url: None,
+            play_params: None,
         });
+
+        let cat_id = attrs
+            .play_params
+            .and_then(|p| p.catalog_id.or(p.reporting_id));
 
         Ok(Song {
             id: raw.id,
@@ -71,6 +98,7 @@ impl<'de> Deserialize<'de> for Song {
             track_number: attrs.track_number,
             release_date: attrs.release_date,
             url: attrs.url,
+            catalog_id: cat_id,
         })
     }
 }

@@ -39,6 +39,7 @@ fn test_ui_draw_with_songs_and_playback() {
         track_number: Some(9),
         release_date: Some("2019-11-29".to_string()),
         url: None,
+        catalog_id: None,
     };
     state.songs = vec![song.clone()];
     state.focused_panel = FocusedPanel::MainContent;
@@ -110,6 +111,7 @@ fn test_ui_draw_modals() {
             track_number: None,
             release_date: None,
             url: None,
+            catalog_id: None,
         },
     };
     terminal
