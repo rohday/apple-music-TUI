@@ -239,6 +239,9 @@ async fn run_browser_playback_loop(
         .arg("--autoplay-policy=no-user-gesture-required")
         .arg("--enable-widevine-cdm")
         .arg("--no-sandbox")
+        .arg("--disable-background-timer-throttling")
+        .arg("--disable-backgrounding-occluded-windows")
+        .arg("--disable-renderer-backgrounding")
         .chrome_executable(browser_path)
         .build()
         .map_err(|e| anyhow::anyhow!("BrowserConfig error: {}", e))?;
@@ -289,7 +292,19 @@ async fn run_browser_playback_loop(
     let mut current_queue: Vec<Song> = Vec::new();
     let mut current_queue_idx: usize = 0;
 
-    let mut poll_interval = tokio::time::interval(Duration::from_millis(500));
+    // Wait for MusicKit to be ready in browser
+    for _ in 0..15 {
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        let check_js = "!!(window.MusicKit && window.MusicKit.getInstance())";
+        if let Ok(eval) = page.evaluate(check_js).await {
+            if eval.into_value::<bool>().unwrap_or(false) {
+                info!("MusicKit instance is ready in headless browser");
+                break;
+            }
+        }
+    }
+
+    let mut poll_interval = tokio::time::interval(Duration::from_millis(250));
 
     loop {
         tokio::select! {
@@ -299,12 +314,18 @@ async fn run_browser_playback_loop(
                         try {
                             const mk = window.MusicKit ? window.MusicKit.getInstance() : null;
                             if (!mk) return { ok: false };
+                            const item = mk.nowPlayingItem;
                             return {
                                 ok: true,
-                                isPlaying: mk.isPlaying,
+                                isPlaying: !!mk.isPlaying,
+                                playbackState: mk.playbackState,
                                 currentTime: mk.currentPlaybackTime || 0,
                                 duration: mk.currentPlaybackDuration || 0,
-                                volume: Math.round((mk.volume || 0.8) * 100)
+                                volume: Math.round((mk.volume || 0.8) * 100),
+                                nowPlayingId: item ? (item.id || item.attributes?.playParams?.id || item.attributes?.playParams?.catalogId) : null,
+                                nowPlayingTitle: item ? item.title : null,
+                                nowPlayingArtist: item ? item.artistName : null,
+                                nowPlayingAlbum: item ? item.albumName : null
                             };
                         } catch (e) {
                             return { ok: false, error: e.toString() };
@@ -314,15 +335,15 @@ async fn run_browser_playback_loop(
                 if let Ok(eval_result) = page.evaluate(js_eval).await {
                     if let Ok(val) = eval_result.into_value::<serde_json::Value>() {
                         if val.get("ok").and_then(|v| v.as_bool()).unwrap_or(false) {
-                            if let Some(playing) = val.get("isPlaying").and_then(|v| v.as_bool()) {
-                                status.state = if playing {
-                                    PlaybackState::Playing
-                                } else if status.current_song.is_some() {
-                                    PlaybackState::Paused
-                                } else {
-                                    PlaybackState::Stopped
-                                };
-                            }
+                            let playing = val.get("isPlaying").and_then(|v| v.as_bool()).unwrap_or(false);
+                            status.state = if playing {
+                                PlaybackState::Playing
+                            } else if status.current_song.is_some() {
+                                PlaybackState::Paused
+                            } else {
+                                PlaybackState::Stopped
+                            };
+
                             if let Some(cur) = val.get("currentTime").and_then(|v| v.as_f64()) {
                                 status.current_time_secs = cur;
                             }
@@ -331,6 +352,22 @@ async fn run_browser_playback_loop(
                                     status.duration_secs = dur;
                                 }
                             }
+                            if let Some(vol) = val.get("volume").and_then(|v| v.as_u64()) {
+                                status.volume = vol as u8;
+                            }
+
+                            // Match song in current_queue if available
+                            if let Some(np_id) = val.get("nowPlayingId").and_then(|v| v.as_str()) {
+                                if let Some((idx, matched_song)) = current_queue
+                                    .iter()
+                                    .enumerate()
+                                    .find(|(_, s)| s.playback_id() == np_id || s.id == np_id)
+                                {
+                                    current_queue_idx = idx;
+                                    status.current_song = Some(matched_song.clone());
+                                }
+                            }
+
                             let _ = status_tx.send(status.clone()).await;
                             *status_store.lock().await = status.clone();
                         }
@@ -340,31 +377,38 @@ async fn run_browser_playback_loop(
             Some(cmd) = cmd_rx.recv() => {
                 match cmd {
                     PlaybackCommand::PlaySong(song) => {
+                        let pid = song.playback_id().to_string();
+                        current_queue = vec![song.clone()];
+                        current_queue_idx = 0;
+
                         status.current_song = Some(song.clone());
                         status.duration_secs = (song.duration_in_millis as f64) / 1000.0;
                         status.current_time_secs = 0.0;
                         status.state = PlaybackState::Playing;
 
-                        let track_url = song.url.clone().unwrap_or_else(|| {
-                            format!("https://music.apple.com/in/album/{}", song.playback_id())
-                        });
+                        let play_js = format!(r#"
+                            (async () => {{
+                                try {{
+                                    let mk = window.MusicKit ? window.MusicKit.getInstance() : null;
+                                    for (let i = 0; i < 10 && !mk; i++) {{
+                                        await new Promise(r => setTimeout(r, 500));
+                                        mk = window.MusicKit ? window.MusicKit.getInstance() : null;
+                                    }}
+                                    if (!mk) return {{ ok: false, err: 'No MusicKit' }};
+                                    await mk.setQueue({{ song: '{}' }});
+                                    for (const a of document.querySelectorAll('audio')) {{
+                                        a.muted = false;
+                                        a.volume = {};
+                                    }}
+                                    await mk.play();
+                                    return {{ ok: true }};
+                                }} catch(e) {{
+                                    return {{ ok: false, err: e.toString() }};
+                                }}
+                            }})()
+                        "#, pid, (status.volume as f64) / 100.0);
 
-                        let _ = page.goto(&track_url).await;
-                        tokio::time::sleep(Duration::from_millis(1500)).await;
-
-                        let trigger_js = r#"
-                            (() => {
-                                const playBtn = document.querySelector('button[aria-label*="Play"]') ||
-                                                document.querySelector('.inline-play-button') ||
-                                                document.querySelector('[data-testid="play-button"]');
-                                if (playBtn) {
-                                    playBtn.click();
-                                } else if (window.MusicKit && window.MusicKit.getInstance()) {
-                                    window.MusicKit.getInstance().play();
-                                }
-                            })()
-                        "#;
-                        let _ = page.evaluate(trigger_js).await;
+                        let _ = page.evaluate(play_js).await;
                     }
                     PlaybackCommand::SetQueueAndPlay(songs, idx) => {
                         current_queue = songs.clone();
@@ -377,35 +421,48 @@ async fn run_browser_playback_loop(
                             status.current_time_secs = 0.0;
                             status.state = PlaybackState::Playing;
 
-                            let track_url = song.url.clone().unwrap_or_else(|| {
-                                format!("https://music.apple.com/in/album/{}", song.playback_id())
-                            });
+                            let song_ids: Vec<String> = songs.iter().map(|s| s.playback_id().to_string()).collect();
+                            let ids_json = serde_json::to_string(&song_ids).unwrap_or_else(|_| "[]".to_string());
 
-                            let _ = page.goto(&track_url).await;
-                            tokio::time::sleep(Duration::from_millis(1500)).await;
+                            let play_js = format!(r#"
+                                (async () => {{
+                                    try {{
+                                        let mk = window.MusicKit ? window.MusicKit.getInstance() : null;
+                                        for (let i = 0; i < 10 && !mk; i++) {{
+                                            await new Promise(r => setTimeout(r, 500));
+                                            mk = window.MusicKit ? window.MusicKit.getInstance() : null;
+                                        }}
+                                        if (!mk) return {{ ok: false, err: 'No MusicKit' }};
+                                        const ids = {};
+                                        await mk.setQueue({{ songs: ids, startWith: {} }});
+                                        for (const a of document.querySelectorAll('audio')) {{
+                                            a.muted = false;
+                                            a.volume = {};
+                                        }}
+                                        await mk.play();
+                                        return {{ ok: true }};
+                                    }} catch(e) {{
+                                        return {{ ok: false, err: e.toString() }};
+                                    }}
+                                }})()
+                            "#, ids_json, idx, (status.volume as f64) / 100.0);
 
-                            let trigger_js = r#"
-                                (() => {
-                                    const playBtn = document.querySelector('button[aria-label*="Play"]') ||
-                                                    document.querySelector('.inline-play-button') ||
-                                                    document.querySelector('[data-testid="play-button"]');
-                                    if (playBtn) {
-                                        playBtn.click();
-                                    } else if (window.MusicKit && window.MusicKit.getInstance()) {
-                                        window.MusicKit.getInstance().play();
-                                    }
-                                })()
-                            "#;
-                            let _ = page.evaluate(trigger_js).await;
+                            let _ = page.evaluate(play_js).await;
                         }
                     }
                     PlaybackCommand::TogglePlayPause => {
                         let toggle_js = r#"
-                            (() => {
+                            (async () => {
                                 const mk = window.MusicKit ? window.MusicKit.getInstance() : null;
                                 if (mk) {
-                                    if (mk.isPlaying) mk.pause();
-                                    else mk.play();
+                                    if (mk.isPlaying) {
+                                        mk.pause();
+                                    } else {
+                                        for (const a of document.querySelectorAll('audio')) {
+                                            a.muted = false;
+                                        }
+                                        await mk.play();
+                                    }
                                 }
                             })()
                         "#;
@@ -417,7 +474,18 @@ async fn run_browser_playback_loop(
                     }
                     PlaybackCommand::Resume => {
                         status.state = PlaybackState::Playing;
-                        let _ = page.evaluate("window.MusicKit && window.MusicKit.getInstance().play();").await;
+                        let resume_js = r#"
+                            (async () => {
+                                const mk = window.MusicKit ? window.MusicKit.getInstance() : null;
+                                if (mk) {
+                                    for (const a of document.querySelectorAll('audio')) {
+                                        a.muted = false;
+                                    }
+                                    await mk.play();
+                                }
+                            })()
+                        "#;
+                        let _ = page.evaluate(resume_js).await;
                     }
                     PlaybackCommand::Next => {
                         if !current_queue.is_empty() && current_queue_idx + 1 < current_queue.len() {
@@ -427,25 +495,20 @@ async fn run_browser_playback_loop(
                             status.duration_secs = (song.duration_in_millis as f64) / 1000.0;
                             status.current_time_secs = 0.0;
                             status.state = PlaybackState::Playing;
-
-                            let track_url = song.url.clone().unwrap_or_else(|| {
-                                format!("https://music.apple.com/in/album/{}", song.playback_id())
-                            });
-                            let _ = page.goto(&track_url).await;
-                            tokio::time::sleep(Duration::from_millis(1500)).await;
-
-                            let _ = page.evaluate(r#"
-                                (() => {
-                                    const playBtn = document.querySelector('button[aria-label*="Play"]') ||
-                                                    document.querySelector('.inline-play-button') ||
-                                                    document.querySelector('[data-testid="play-button"]');
-                                    if (playBtn) playBtn.click();
-                                    else if (window.MusicKit && window.MusicKit.getInstance()) window.MusicKit.getInstance().play();
-                                })()
-                            "#).await;
-                        } else {
-                            let _ = page.evaluate("window.MusicKit && window.MusicKit.getInstance().skipToNextItem();").await;
                         }
+                        let next_js = r#"
+                            (async () => {
+                                const mk = window.MusicKit ? window.MusicKit.getInstance() : null;
+                                if (mk) {
+                                    await mk.skipToNextItem();
+                                    for (const a of document.querySelectorAll('audio')) {
+                                        a.muted = false;
+                                    }
+                                    await mk.play();
+                                }
+                            })()
+                        "#;
+                        let _ = page.evaluate(next_js).await;
                     }
                     PlaybackCommand::Previous => {
                         if !current_queue.is_empty() && current_queue_idx > 0 {
@@ -455,25 +518,20 @@ async fn run_browser_playback_loop(
                             status.duration_secs = (song.duration_in_millis as f64) / 1000.0;
                             status.current_time_secs = 0.0;
                             status.state = PlaybackState::Playing;
-
-                            let track_url = song.url.clone().unwrap_or_else(|| {
-                                format!("https://music.apple.com/in/album/{}", song.playback_id())
-                            });
-                            let _ = page.goto(&track_url).await;
-                            tokio::time::sleep(Duration::from_millis(1500)).await;
-
-                            let _ = page.evaluate(r#"
-                                (() => {
-                                    const playBtn = document.querySelector('button[aria-label*="Play"]') ||
-                                                    document.querySelector('.inline-play-button') ||
-                                                    document.querySelector('[data-testid="play-button"]');
-                                    if (playBtn) playBtn.click();
-                                    else if (window.MusicKit && window.MusicKit.getInstance()) window.MusicKit.getInstance().play();
-                                })()
-                            "#).await;
-                        } else {
-                            let _ = page.evaluate("window.MusicKit && window.MusicKit.getInstance().skipToPreviousItem();").await;
                         }
+                        let prev_js = r#"
+                            (async () => {
+                                const mk = window.MusicKit ? window.MusicKit.getInstance() : null;
+                                if (mk) {
+                                    await mk.skipToPreviousItem();
+                                    for (const a of document.querySelectorAll('audio')) {
+                                        a.muted = false;
+                                    }
+                                    await mk.play();
+                                }
+                            })()
+                        "#;
+                        let _ = page.evaluate(prev_js).await;
                     }
                     PlaybackCommand::Seek(pos) => {
                         let js = format!("window.MusicKit && window.MusicKit.getInstance().seekToTime({});", pos);
@@ -487,7 +545,15 @@ async fn run_browser_playback_loop(
                     PlaybackCommand::SetVolume(vol) => {
                         status.volume = vol.min(100);
                         let vol_f = (vol as f64) / 100.0;
-                        let js = format!("if (window.MusicKit) window.MusicKit.getInstance().volume = {};", vol_f);
+                        let js = format!(r#"
+                            (() => {{
+                                const mk = window.MusicKit ? window.MusicKit.getInstance() : null;
+                                if (mk) mk.volume = {};
+                                for (const a of document.querySelectorAll('audio')) {{
+                                    a.volume = {};
+                                }}
+                            }})()
+                        "#, vol_f, vol_f);
                         let _ = page.evaluate(js).await;
                     }
                     PlaybackCommand::ToggleShuffle => {
