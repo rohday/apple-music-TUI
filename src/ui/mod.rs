@@ -46,19 +46,15 @@ pub fn draw(f: &mut Frame, state: &AppState) {
 }
 
 fn render_header(f: &mut Frame, area: Rect, state: &AppState) {
-    let auth_status = if state.is_authenticated {
+    let auth_badge = if state.is_authenticated {
         Span::styled(
-            " [AUTH] ",
-            Style::default()
-                .fg(Color::Green)
-                .add_modifier(Modifier::BOLD),
+            format!(" [{}]", state.storefront.to_uppercase()),
+            Style::default().fg(theme::Theme::TEXT_MUTED),
         )
     } else {
         Span::styled(
-            " [MOCK/UNAUTH] ",
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
+            " [offline]",
+            Style::default().fg(Color::Yellow),
         )
     };
 
@@ -69,17 +65,12 @@ fn render_header(f: &mut Frame, area: Rect, state: &AppState) {
 
     let left_header = Line::from(vec![
         Span::styled(
-            " appleTUI ",
+            " appleTUI",
             Style::default()
                 .fg(theme::Theme::ACCENT)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled("v0.1.0 ", Style::default().fg(theme::Theme::TEXT_MUTED)),
-        Span::styled(
-            format!("Storefront: {} ", state.storefront.to_uppercase()),
-            Style::default().fg(theme::Theme::TEXT_MUTED),
-        ),
-        auth_status,
+        auth_badge,
     ]);
 
     let right_header = Line::from(vec![Span::styled(
@@ -89,7 +80,7 @@ fn render_header(f: &mut Frame, area: Rect, state: &AppState) {
 
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
         .split(area);
 
     f.render_widget(Paragraph::new(left_header), chunks[0]);
