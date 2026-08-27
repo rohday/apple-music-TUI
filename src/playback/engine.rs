@@ -416,13 +416,19 @@ async fn run_browser_playback_loop(
 
                         if idx < songs.len() {
                             let song = &songs[idx];
+                            let target_id = song.playback_id().to_string();
                             status.current_song = Some(song.clone());
                             status.duration_secs = (song.duration_in_millis as f64) / 1000.0;
                             status.current_time_secs = 0.0;
                             status.state = PlaybackState::Playing;
 
-                            let song_ids: Vec<String> = songs.iter().map(|s| s.playback_id().to_string()).collect();
-                            let ids_json = serde_json::to_string(&song_ids).unwrap_or_else(|_| "[]".to_string());
+                            let upcoming_ids: Vec<String> = songs
+                                .iter()
+                                .skip(idx + 1)
+                                .take(15)
+                                .map(|s| s.playback_id().to_string())
+                                .collect();
+                            let upcoming_json = serde_json::to_string(&upcoming_ids).unwrap_or_else(|_| "[]".to_string());
 
                             let play_js = format!(r#"
                                 (async () => {{
@@ -433,19 +439,33 @@ async fn run_browser_playback_loop(
                                             mk = window.MusicKit ? window.MusicKit.getInstance() : null;
                                         }}
                                         if (!mk) return {{ ok: false, err: 'No MusicKit' }};
-                                        const ids = {};
-                                        await mk.setQueue({{ songs: ids, startWith: {} }});
+                                        
+                                        // Set target song and play immediately
+                                        await mk.setQueue({{ song: '{}' }});
                                         for (const a of document.querySelectorAll('audio')) {{
                                             a.muted = false;
                                             a.volume = {};
                                         }}
                                         await mk.play();
+
+                                        // Append upcoming tracks non-blockingly
+                                        const upcoming = {};
+                                        (async () => {{
+                                            for (const nextId of upcoming) {{
+                                                try {{
+                                                    await mk.playLater({{ song: nextId }});
+                                                }} catch (err) {{
+                                                    console.warn("Could not enqueue", nextId, err);
+                                                }}
+                                            }}
+                                        }})();
+
                                         return {{ ok: true }};
                                     }} catch(e) {{
                                         return {{ ok: false, err: e.toString() }};
                                     }}
                                 }})()
-                            "#, ids_json, idx, (status.volume as f64) / 100.0);
+                            "#, target_id, (status.volume as f64) / 100.0, upcoming_json);
 
                             let _ = page.evaluate(play_js).await;
                         }
@@ -490,48 +510,64 @@ async fn run_browser_playback_loop(
                     PlaybackCommand::Next => {
                         if !current_queue.is_empty() && current_queue_idx + 1 < current_queue.len() {
                             current_queue_idx += 1;
-                            let song = &current_queue[current_queue_idx];
-                            status.current_song = Some(song.clone());
-                            status.duration_secs = (song.duration_in_millis as f64) / 1000.0;
+                            let next_song = &current_queue[current_queue_idx];
+                            let next_id = next_song.playback_id().to_string();
+                            status.current_song = Some(next_song.clone());
+                            status.duration_secs = (next_song.duration_in_millis as f64) / 1000.0;
                             status.current_time_secs = 0.0;
                             status.state = PlaybackState::Playing;
+
+                            let next_js = format!(r#"
+                                (async () => {{
+                                    const mk = window.MusicKit ? window.MusicKit.getInstance() : null;
+                                    if (mk) {{
+                                        try {{
+                                            await mk.skipToNextItem();
+                                        }} catch (err) {{
+                                            await mk.setQueue({{ song: '{}' }});
+                                        }}
+                                        for (const a of document.querySelectorAll('audio')) {{
+                                            a.muted = false;
+                                        }}
+                                        await mk.play();
+                                    }}
+                                }})()
+                            "#, next_id);
+                            let _ = page.evaluate(next_js).await;
                         }
-                        let next_js = r#"
-                            (async () => {
-                                const mk = window.MusicKit ? window.MusicKit.getInstance() : null;
-                                if (mk) {
-                                    await mk.skipToNextItem();
-                                    for (const a of document.querySelectorAll('audio')) {
-                                        a.muted = false;
-                                    }
-                                    await mk.play();
-                                }
-                            })()
-                        "#;
-                        let _ = page.evaluate(next_js).await;
                     }
                     PlaybackCommand::Previous => {
                         if !current_queue.is_empty() && current_queue_idx > 0 {
                             current_queue_idx -= 1;
-                            let song = &current_queue[current_queue_idx];
-                            status.current_song = Some(song.clone());
-                            status.duration_secs = (song.duration_in_millis as f64) / 1000.0;
+                            let prev_song = &current_queue[current_queue_idx];
+                            let prev_id = prev_song.playback_id().to_string();
+                            status.current_song = Some(prev_song.clone());
+                            status.duration_secs = (prev_song.duration_in_millis as f64) / 1000.0;
                             status.current_time_secs = 0.0;
                             status.state = PlaybackState::Playing;
+
+                            let prev_js = format!(r#"
+                                (async () => {{
+                                    const mk = window.MusicKit ? window.MusicKit.getInstance() : null;
+                                    if (mk) {{
+                                        try {{
+                                            if (mk.currentPlaybackTime > 3.0) {{
+                                                await mk.seekToTime(0);
+                                            }} else {{
+                                                await mk.skipToPreviousItem();
+                                            }}
+                                        }} catch (err) {{
+                                            await mk.setQueue({{ song: '{}' }});
+                                        }}
+                                        for (const a of document.querySelectorAll('audio')) {{
+                                            a.muted = false;
+                                        }}
+                                        await mk.play();
+                                    }}
+                                }})()
+                            "#, prev_id);
+                            let _ = page.evaluate(prev_js).await;
                         }
-                        let prev_js = r#"
-                            (async () => {
-                                const mk = window.MusicKit ? window.MusicKit.getInstance() : null;
-                                if (mk) {
-                                    await mk.skipToPreviousItem();
-                                    for (const a of document.querySelectorAll('audio')) {
-                                        a.muted = false;
-                                    }
-                                    await mk.play();
-                                }
-                            })()
-                        "#;
-                        let _ = page.evaluate(prev_js).await;
                     }
                     PlaybackCommand::Seek(pos) => {
                         let js = format!("window.MusicKit && window.MusicKit.getInstance().seekToTime({});", pos);
