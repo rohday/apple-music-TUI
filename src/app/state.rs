@@ -101,7 +101,7 @@ impl AppState {
     pub fn new() -> Self {
         Self {
             active_view: ActiveView::LibrarySongs,
-            focused_panel: FocusedPanel::Sidebar,
+            focused_panel: FocusedPanel::MainContent,
             modal: ModalState::None,
             sidebar_index: 1, // Start at Library Songs
             selected_index: 0,

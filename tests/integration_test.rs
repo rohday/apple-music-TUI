@@ -35,7 +35,7 @@ async fn test_event_handler_navigation_and_shortcuts() {
     let mut state = AppState::new();
 
     // 1. Tab key to switch focus
-    assert_eq!(state.focused_panel, FocusedPanel::Sidebar);
+    assert_eq!(state.focused_panel, FocusedPanel::MainContent);
     handle_key_event(
         KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE),
         &mut state,
@@ -44,7 +44,7 @@ async fn test_event_handler_navigation_and_shortcuts() {
     )
     .await
     .unwrap();
-    assert_eq!(state.focused_panel, FocusedPanel::MainContent);
+    assert_eq!(state.focused_panel, FocusedPanel::Sidebar);
 
     // 2. '/' key to open search
     handle_key_event(

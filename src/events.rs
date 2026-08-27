@@ -142,6 +142,25 @@ pub async fn handle_key_event(
         }
         // Playback hotkeys
         KeyCode::Char(' ') => {
+            if state.playback.current_song.is_none() || state.playback.state == crate::playback::types::PlaybackState::Stopped {
+                if let Some(song) = state.get_selected_song() {
+                    let list = match state.active_view {
+                        ActiveView::LibrarySongs => state.songs.clone(),
+                        ActiveView::PlaylistDetail => state.playlist_tracks.clone(),
+                        ActiveView::RecentlyPlayed => state.recent_tracks.clone(),
+                        ActiveView::Search => state.search_results.songs.clone(),
+                        ActiveView::Queue => state.queue.clone(),
+                        _ => vec![song.clone()],
+                    };
+                    playback
+                        .send_command(PlaybackCommand::SetQueueAndPlay(
+                            list,
+                            state.selected_index,
+                        ))
+                        .await?;
+                    return Ok(());
+                }
+            }
             playback
                 .send_command(PlaybackCommand::TogglePlayPause)
                 .await?;

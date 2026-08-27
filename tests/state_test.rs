@@ -5,7 +5,7 @@ use apple_tui::app::state::{ActiveView, AppState, FocusedPanel, ModalState};
 fn test_state_navigation_and_clamping() {
     let mut state = AppState::new();
     assert_eq!(state.active_view, ActiveView::LibrarySongs);
-    assert_eq!(state.focused_panel, FocusedPanel::Sidebar);
+    assert_eq!(state.focused_panel, FocusedPanel::MainContent);
 
     state.songs = vec![
         Song {
