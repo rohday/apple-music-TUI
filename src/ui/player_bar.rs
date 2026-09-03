@@ -49,6 +49,8 @@ pub fn render_player_bar(f: &mut Frame, area: Rect, state: &AppState) {
     };
 
     let time_info = state.playback.formatted_position();
+    let is_playing = state.playback.state == PlaybackState::Playing;
+    let eq_bars = crate::ui::visualizer::compute_spectrum_bars(state.playback.current_time_secs, 8, is_playing);
 
     let info_line = Line::from(vec![
         Span::styled(
@@ -58,7 +60,11 @@ pub fn render_player_bar(f: &mut Frame, area: Rect, state: &AppState) {
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
-            format!(" {} ", track_title),
+            format!("{} ", eq_bars),
+            Style::default().fg(theme.secondary),
+        ),
+        Span::styled(
+            format!("{} ", track_title),
             Style::default()
                 .fg(theme.text_primary)
                 .add_modifier(Modifier::BOLD),

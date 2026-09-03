@@ -275,6 +275,21 @@ pub async fn handle_key_event(
             let _ = cfg.save();
             return Ok(());
         }
+        KeyCode::Char('v') => {
+            state.show_visualizer = !state.show_visualizer;
+            let status = if state.show_visualizer {
+                "Visualizer: Enabled (Press 'v' or 'Esc' to exit)"
+            } else {
+                "Visualizer: Disabled"
+            };
+            state.set_status(status);
+            return Ok(());
+        }
+        KeyCode::Esc if state.show_visualizer => {
+            state.show_visualizer = false;
+            state.set_status("Visualizer: Disabled");
+            return Ok(());
+        }
         _ => {}
     }
 

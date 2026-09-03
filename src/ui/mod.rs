@@ -3,6 +3,7 @@ pub mod modals;
 pub mod player_bar;
 pub mod sidebar;
 pub mod theme;
+pub mod visualizer;
 
 use crate::app::state::AppState;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
@@ -36,7 +37,11 @@ pub fn draw(f: &mut Frame, state: &AppState) {
         .split(main_chunks[1]);
 
     sidebar::render_sidebar(f, content_chunks[0], state);
-    main_view::render_main_view(f, content_chunks[1], state);
+    if state.show_visualizer {
+        visualizer::render_fullscreen_visualizer(f, content_chunks[1], state);
+    } else {
+        main_view::render_main_view(f, content_chunks[1], state);
+    }
 
     // 3. Bottom Player Bar
     player_bar::render_player_bar(f, main_chunks[2], state);

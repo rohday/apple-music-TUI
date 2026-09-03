@@ -92,6 +92,7 @@ pub struct AppState {
     pub volume: u8,
     pub pending_login: bool,
     pub theme: crate::ui::theme::ThemePreset,
+    pub show_visualizer: bool,
 }
 
 impl Default for AppState {
@@ -129,6 +130,7 @@ impl AppState {
             volume: 80,
             pending_login: false,
             theme: crate::ui::theme::ThemePreset::AppleDark,
+            show_visualizer: false,
         }
     }
 
