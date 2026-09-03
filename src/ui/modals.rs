@@ -148,9 +148,13 @@ pub fn render_modals(f: &mut Frame, area: Rect, state: &AppState) {
                         .add_modifier(Modifier::BOLD),
                 )),
                 Line::from("  t                : Cycle themes (Apple Dark, Catppuccin, Tokyo Night, Gruvbox, Nord)"),
+                Line::from("  v                : Toggle Spectrum Visualizer"),
+                Line::from("  f                : In-View live search filter"),
+                Line::from("  R                : Start Radio Station for selected song"),
                 Line::from("  /                : Open Catalog Search"),
                 Line::from("  c                : Create new playlist (in Playlists view)"),
                 Line::from("  a                : Add selected track to playlist"),
+                Line::from("  F5               : Refresh library data"),
                 Line::from("  ?                : Toggle this help overlay"),
                 Line::from("  q / Ctrl+C       : Quit application"),
             ];

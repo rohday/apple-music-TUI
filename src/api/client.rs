@@ -414,6 +414,39 @@ impl AppleMusicClient {
         let list: RawListResponse<Song> = resp.json().await?;
         Ok(list.data)
     }
+
+    pub async fn create_station_for_song(&self, song_id: &str, storefront: &str) -> Result<Vec<Song>> {
+        if self.mock_mode {
+            let base = mock_library_songs();
+            let station: Vec<Song> = base
+                .into_iter()
+                .cycle()
+                .take(10)
+                .enumerate()
+                .map(|(i, mut s)| {
+                    s.id = format!("station_{song_id}_{i}");
+                    s.name = format!("{} (Station Radio {})", s.name, i + 1);
+                    s
+                })
+                .collect();
+            return Ok(station);
+        }
+
+        let url = format!("{}/catalog/{}/songs/{}/station", BASE_URL, storefront, song_id);
+        let resp = self.client.get(&url).headers(self.auth_headers()).send().await;
+
+        if let Ok(resp) = resp {
+            if resp.status().is_success() {
+                if let Ok(list) = resp.json::<RawListResponse<Song>>().await {
+                    if !list.data.is_empty() {
+                        return Ok(list.data);
+                    }
+                }
+            }
+        }
+
+        self.get_recent_tracks().await
+    }
 }
 
 // Mock data fixtures for offline mode and tests

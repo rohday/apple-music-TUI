@@ -255,7 +255,7 @@ pub async fn handle_key_event(
                 .await?;
             return Ok(());
         }
-        KeyCode::Char('R') | KeyCode::F(5) => {
+        KeyCode::F(5) => {
             state.set_status("Refreshing data from Apple Music...");
             match state.active_view {
                 ActiveView::LibrarySongs => {
@@ -333,6 +333,28 @@ pub async fn handle_key_event(
         KeyCode::Esc if !state.filter_query.is_empty() => {
             state.clear_filter();
             state.set_status("Filter cleared");
+            return Ok(());
+        }
+        KeyCode::Char('R') => {
+            if let Some(song) = state.get_selected_song() {
+                state.set_status(format!("Creating Station for '{}'...", song.name));
+                match client.create_station_for_song(&song.id, &state.storefront).await {
+                    Ok(station_tracks) if !station_tracks.is_empty() => {
+                        state.queue = station_tracks.clone();
+                        state.active_view = ActiveView::Queue;
+                        state.selected_index = 0;
+                        playback
+                            .send_command(PlaybackCommand::SetQueueAndPlay(station_tracks, 0))
+                            .await?;
+                        state.set_status(format!("📻 Playing Station for '{}'", song.name));
+                    }
+                    _ => {
+                        state.set_status("Failed to create station");
+                    }
+                }
+            } else {
+                state.set_status("Select a song to start a station");
+            }
             return Ok(());
         }
         _ => {}
