@@ -49,15 +49,18 @@ pub fn render_shimmer_progress_bar<'a>(
         return Line::from(spans);
     }
 
-    // Traveling beam calculation (slow, calm 60 FPS transit ~6.5s)
-    let beam_speed = (filled_len as f64) / 6.5;
+    let beam_radius = 6.0; // Wide, soft, faded radius
+    let pad = beam_radius + 2.0; // Padding to ensure beam fully enters and exits off-screen
+    let calm_gap = 5.0; // Brief peaceful pause between sweeps
+    let total_travel = (filled_len as f64) + 2.0 * pad + calm_gap;
+    let sweep_period = 5.5; // Seconds per complete sweep cycle
+    let beam_speed = total_travel / sweep_period;
+
     let beam_pos = if is_playing {
-        (anim_time * beam_speed) % (filled_len.max(1) as f64)
+        ((anim_time * beam_speed) % total_travel) - pad
     } else {
         (filled_len as f64) * 0.5
     };
-
-    let beam_radius = 7.0; // Wide, soft, faded radius
 
     for i in 0..filled_len {
         let dist = ((i as f64) - beam_pos).abs();
