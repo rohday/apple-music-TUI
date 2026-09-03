@@ -2,6 +2,7 @@ pub mod lyrics;
 pub mod main_view;
 pub mod modals;
 pub mod player_bar;
+pub mod shimmer;
 pub mod sidebar;
 pub mod theme;
 pub mod visualizer;

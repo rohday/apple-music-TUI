@@ -3,7 +3,7 @@ use crate::playback::types::PlaybackState;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Gauge, Paragraph};
+use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
 pub fn render_player_bar(f: &mut Frame, area: Rect, state: &AppState) {
@@ -86,35 +86,24 @@ pub fn render_player_bar(f: &mut Frame, area: Rect, state: &AppState) {
     let time_info = state.playback.formatted_position();
     let is_playing = state.playback.state == PlaybackState::Playing;
 
-    let mut info_spans = vec![Span::styled(
-        status_icon,
-        Style::default()
-            .fg(theme.accent)
-            .add_modifier(Modifier::BOLD),
-    )];
-
-    if !is_expanded {
-        let inline_wave = crate::ui::visualizer::render_compact_braille_wave(
-            8,
-            state.anim_time,
-            is_playing,
-        );
-        info_spans.push(Span::styled(
-            format!("{} ", inline_wave),
-            Style::default().fg(theme.secondary),
-        ));
-    }
-
-    info_spans.push(Span::styled(
-        format!("{} ", track_title),
-        Style::default()
-            .fg(theme.text_primary)
-            .add_modifier(Modifier::BOLD),
-    ));
-    info_spans.push(Span::styled(
-        format!("- {} ", artist_album),
-        Style::default().fg(theme.text_muted),
-    ));
+    let info_spans = vec![
+        Span::styled(
+            status_icon,
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            format!("{} ", track_title),
+            Style::default()
+                .fg(theme.text_primary)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            format!("- {} ", artist_album),
+            Style::default().fg(theme.text_muted),
+        ),
+    ];
 
     let info_line = Line::from(info_spans);
     let time_line = Line::from(vec![Span::styled(
@@ -133,7 +122,7 @@ pub fn render_player_bar(f: &mut Frame, area: Rect, state: &AppState) {
         row1[1],
     );
 
-    // 2. Expanded Braille Fluid Ribbon
+    // 2. Expanded Braille Fluid Ribbon (Single Theme Color)
     if let Some(r_area) = ribbon_chunk {
         let (top_ribbon, bottom_ribbon) = crate::ui::visualizer::render_braille_ribbon(
             r_area.width as usize,
@@ -141,23 +130,29 @@ pub fn render_player_bar(f: &mut Frame, area: Rect, state: &AppState) {
             is_playing,
         );
         let ribbon_lines = vec![
-            Line::from(Span::styled(top_ribbon, Style::default().fg(theme.secondary))),
+            Line::from(Span::styled(top_ribbon, Style::default().fg(theme.accent))),
             Line::from(Span::styled(bottom_ribbon, Style::default().fg(theme.accent))),
         ];
         f.render_widget(Paragraph::new(ribbon_lines), r_area);
     }
 
-    // 3. Progress Gauge
+    // 3. Shimmer Progress Bar Visualizer (60 FPS Traveling Glow Beam)
     let ratio = state.playback.progress_ratio();
-    let gauge = Gauge::default()
-        .gauge_style(
-            Style::default()
-                .fg(theme.accent)
-                .bg(theme.highlight_bg),
-        )
-        .ratio(ratio)
-        .label("");
-    f.render_widget(gauge, gauge_chunk);
+    let glow_color = if is_playing {
+        theme.text_primary
+    } else {
+        theme.accent
+    };
+    let progress_line = crate::ui::shimmer::render_shimmer_progress_bar(
+        gauge_chunk.width as usize,
+        ratio,
+        state.anim_time,
+        is_playing,
+        theme.accent,
+        glow_color,
+        theme.text_muted,
+    );
+    f.render_widget(Paragraph::new(progress_line), gauge_chunk);
 
     // 4. Controls and Volume
     let shuffle_style = if state.playback.shuffle {
