@@ -67,10 +67,17 @@ impl Config {
             let target_str = target.to_string_lossy();
             if let Some(pid_str) = target_str.rsplit('-').next() {
                 if let Ok(pid) = pid_str.parse::<i32>() {
-                    let is_alive = unsafe { libc::kill(pid, 0) == 0 };
-                    if is_alive {
-                        // Active browser running; do not remove locks
-                        return;
+                    if pid > 0 && unsafe { libc::kill(pid, 0) == 0 } {
+                        // Orphaned browser process from a past session; terminate it
+                        unsafe {
+                            libc::kill(pid, libc::SIGTERM);
+                            libc::kill(-pid, libc::SIGTERM);
+                        }
+                        std::thread::sleep(std::time::Duration::from_millis(100));
+                        unsafe {
+                            libc::kill(pid, libc::SIGKILL);
+                            libc::kill(-pid, libc::SIGKILL);
+                        }
                     }
                 }
             }
@@ -78,9 +85,7 @@ impl Config {
 
         for name in &["SingletonLock", "SingletonCookie", "SingletonSocket"] {
             let p = profile_dir.join(name);
-            if p.symlink_metadata().is_ok() {
-                let _ = fs::remove_file(&p);
-            }
+            let _ = fs::remove_file(&p);
         }
     }
 
@@ -214,6 +219,10 @@ pub fn find_browser_binary() -> Option<PathBuf> {
     }
 
     let candidates = [
+        "/opt/brave.com/brave/brave",
+        "/opt/google/chrome/chrome",
+        "/usr/lib/chromium/chromium",
+        "/usr/lib/chromium-browser/chromium-browser",
         "/usr/bin/brave-browser",
         "/usr/bin/google-chrome-stable",
         "/usr/bin/google-chrome",

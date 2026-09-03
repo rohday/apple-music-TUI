@@ -29,6 +29,14 @@ impl Drop for PlaybackEngine {
                 libc::kill(pid as i32, libc::SIGTERM);
                 libc::kill(-(pid as i32), libc::SIGTERM);
             }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            unsafe {
+                libc::kill(pid as i32, libc::SIGKILL);
+                libc::kill(-(pid as i32), libc::SIGKILL);
+            }
+        }
+        if let Ok(dir) = crate::config::Config::get_profile_dir() {
+            crate::config::Config::clean_stale_browser_locks(&dir);
         }
     }
 }
@@ -281,7 +289,19 @@ async fn run_browser_playback_loop(
         .build()
         .map_err(|e| anyhow::anyhow!("BrowserConfig error: {}", e))?;
 
-    let (mut browser, mut handler) = Browser::launch(config).await?;
+    let launch_res = Browser::launch(config).await;
+    let (mut browser, mut handler) = match launch_res {
+        Ok((b, h)) => (b, h),
+        Err(e) => {
+            warn!(
+                "Failed to launch headless browser: {:#}. Falling back to mock playback engine.",
+                e
+            );
+            run_mock_playback_loop(cmd_rx, status_tx, status_store).await;
+            return Ok(());
+        }
+    };
+
     if let Some(child) = browser.get_mut_child() {
         if let Some(pid) = child.inner.id() {
             browser_pid.store(pid, Ordering::SeqCst);
@@ -296,7 +316,20 @@ async fn run_browser_playback_loop(
         }
     });
 
-    let page = browser.new_page("https://music.apple.com").await?;
+    let page = match browser.new_page("https://music.apple.com").await {
+        Ok(p) => p,
+        Err(e) => {
+            warn!(
+                "Failed to navigate to Apple Music: {:#}. Falling back to mock playback engine.",
+                e
+            );
+            browser_pid.store(0, Ordering::SeqCst);
+            let _ = browser.close().await;
+            handler_handle.abort();
+            run_mock_playback_loop(cmd_rx, status_tx, status_store).await;
+            return Ok(());
+        }
+    };
     info!("Navigated to Apple Music web player");
 
     // Inject active user authentication token cookies into browser session

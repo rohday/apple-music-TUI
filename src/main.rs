@@ -183,7 +183,9 @@ async fn main() -> Result<()> {
             }
             Some(Ok(event)) = event_stream.next() => {
                 if let Event::Key(key) = event {
-                    handle_key_event(key, &mut state, &client, &playback).await?;
+                    if let Err(e) = handle_key_event(key, &mut state, &client, &playback).await {
+                        state.set_status(format!("Error: {e}"));
+                    }
                     if state.pending_login {
                         state.pending_login = false;
                         let _ = disable_raw_mode();
