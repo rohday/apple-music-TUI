@@ -101,6 +101,14 @@ impl PlaybackEngine {
         self.status_receiver.clone()
     }
 
+    pub fn get_cmd_sender(&self) -> Sender<PlaybackCommand> {
+        self.cmd_sender.clone()
+    }
+
+    pub fn get_status_store(&self) -> Arc<Mutex<PlaybackStatus>> {
+        self.current_status.clone()
+    }
+
     pub async fn get_current_status(&self) -> PlaybackStatus {
         self.current_status.lock().await.clone()
     }

@@ -113,6 +113,12 @@ async fn main() -> Result<()> {
 
     let playback = PlaybackEngine::new(config.browser_path.clone(), config.mock_mode).await?;
 
+    // Spawn MPRIS D-Bus background service for desktop integration (media keys, playerctl)
+    tokio::spawn(apple_tui::playback::mpris::start_mpris_background_service(
+        playback.get_cmd_sender(),
+        playback.get_status_store(),
+    ));
+
     // Setup terminal
     let guard = TerminalGuard;
     enable_raw_mode()?;
