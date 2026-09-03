@@ -91,6 +91,7 @@ pub struct AppState {
     pub should_quit: bool,
     pub volume: u8,
     pub pending_login: bool,
+    pub theme: crate::ui::theme::ThemePreset,
 }
 
 impl Default for AppState {
@@ -127,7 +128,13 @@ impl AppState {
             should_quit: false,
             volume: 80,
             pending_login: false,
+            theme: crate::ui::theme::ThemePreset::AppleDark,
         }
+    }
+
+    pub fn cycle_theme(&mut self) -> crate::ui::theme::ThemePreset {
+        self.theme = self.theme.cycle();
+        self.theme
     }
 
     pub fn current_list_len(&self) -> usize {

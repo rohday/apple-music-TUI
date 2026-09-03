@@ -267,6 +267,14 @@ pub async fn handle_key_event(
             playback.send_command(PlaybackCommand::CycleRepeat).await?;
             return Ok(());
         }
+        KeyCode::Char('t') => {
+            let new_theme = state.cycle_theme();
+            state.set_status(format!("Theme: {}", new_theme.display_name()));
+            let mut cfg = crate::config::Config::load();
+            cfg.theme = new_theme;
+            let _ = cfg.save();
+            return Ok(());
+        }
         _ => {}
     }
 

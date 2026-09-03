@@ -1,5 +1,4 @@
 use crate::app::state::{ActiveView, AppState, FocusedPanel};
-use crate::ui::theme::Theme;
 use ratatui::layout::{Constraint, Rect};
 use ratatui::style::Style;
 use ratatui::text::Span;
@@ -34,6 +33,7 @@ pub fn render_main_view(f: &mut Frame, area: Rect, state: &AppState) {
     let focused = state.focused_panel == FocusedPanel::MainContent;
     let title = state.active_view.display_name();
     let viewport_height = (area.height.saturating_sub(4) as usize).max(1);
+    let theme = state.theme.theme();
 
     match state.active_view {
         ActiveView::LibrarySongs
@@ -71,16 +71,16 @@ pub fn render_main_view(f: &mut Frame, area: Rect, state: &AppState) {
             };
 
             let block = Block::default()
-                .title(Span::styled(title_text, Theme::title_style()))
+                .title(Span::styled(title_text, theme.title_style()))
                 .borders(Borders::ALL)
-                .border_style(Theme::border_style(focused));
+                .border_style(theme.border_style(focused));
 
             let header = Row::new(vec![
-                Cell::from(" # ").style(Style::default().fg(Theme::TEXT_MUTED)),
-                Cell::from(" Title").style(Style::default().fg(Theme::TEXT_MUTED)),
-                Cell::from(" Artist").style(Style::default().fg(Theme::TEXT_MUTED)),
-                Cell::from(" Album").style(Style::default().fg(Theme::TEXT_MUTED)),
-                Cell::from(" Duration ").style(Style::default().fg(Theme::TEXT_MUTED)),
+                Cell::from(" # ").style(Style::default().fg(theme.text_muted)),
+                Cell::from(" Title").style(Style::default().fg(theme.text_muted)),
+                Cell::from(" Artist").style(Style::default().fg(theme.text_muted)),
+                Cell::from(" Album").style(Style::default().fg(theme.text_muted)),
+                Cell::from(" Duration ").style(Style::default().fg(theme.text_muted)),
             ])
             .bottom_margin(1);
 
@@ -104,11 +104,11 @@ pub fn render_main_view(f: &mut Frame, area: Rect, state: &AppState) {
                     };
 
                     let row_style = if is_selected {
-                        Theme::selected_row_style()
+                        theme.selected_row_style()
                     } else if is_playing {
-                        Style::default().fg(Theme::ACCENT)
+                        Style::default().fg(theme.accent)
                     } else {
-                        Style::default().fg(Theme::TEXT_PRIMARY)
+                        Style::default().fg(theme.text_primary)
                     };
 
                     Row::new(vec![
@@ -158,15 +158,15 @@ pub fn render_main_view(f: &mut Frame, area: Rect, state: &AppState) {
             };
 
             let block = Block::default()
-                .title(Span::styled(title_text, Theme::title_style()))
+                .title(Span::styled(title_text, theme.title_style()))
                 .borders(Borders::ALL)
-                .border_style(Theme::border_style(focused));
+                .border_style(theme.border_style(focused));
 
             let header = Row::new(vec![
-                Cell::from(" # ").style(Style::default().fg(Theme::TEXT_MUTED)),
-                Cell::from(" Playlist Name").style(Style::default().fg(Theme::TEXT_MUTED)),
-                Cell::from(" Tracks").style(Style::default().fg(Theme::TEXT_MUTED)),
-                Cell::from(" Description").style(Style::default().fg(Theme::TEXT_MUTED)),
+                Cell::from(" # ").style(Style::default().fg(theme.text_muted)),
+                Cell::from(" Playlist Name").style(Style::default().fg(theme.text_muted)),
+                Cell::from(" Tracks").style(Style::default().fg(theme.text_muted)),
+                Cell::from(" Description").style(Style::default().fg(theme.text_muted)),
             ])
             .bottom_margin(1);
 
@@ -177,9 +177,9 @@ pub fn render_main_view(f: &mut Frame, area: Rect, state: &AppState) {
                     let true_idx = start_idx + offset;
                     let is_selected = true_idx == state.selected_index;
                     let row_style = if is_selected {
-                        Theme::selected_row_style()
+                        theme.selected_row_style()
                     } else {
-                        Style::default().fg(Theme::TEXT_PRIMARY)
+                        Style::default().fg(theme.text_primary)
                     };
 
                     Row::new(vec![
@@ -228,15 +228,15 @@ pub fn render_main_view(f: &mut Frame, area: Rect, state: &AppState) {
             };
 
             let block = Block::default()
-                .title(Span::styled(title_text, Theme::title_style()))
+                .title(Span::styled(title_text, theme.title_style()))
                 .borders(Borders::ALL)
-                .border_style(Theme::border_style(focused));
+                .border_style(theme.border_style(focused));
 
             let header = Row::new(vec![
-                Cell::from(" # ").style(Style::default().fg(Theme::TEXT_MUTED)),
-                Cell::from(" Album Name").style(Style::default().fg(Theme::TEXT_MUTED)),
-                Cell::from(" Artist").style(Style::default().fg(Theme::TEXT_MUTED)),
-                Cell::from(" Tracks").style(Style::default().fg(Theme::TEXT_MUTED)),
+                Cell::from(" # ").style(Style::default().fg(theme.text_muted)),
+                Cell::from(" Album Name").style(Style::default().fg(theme.text_muted)),
+                Cell::from(" Artist").style(Style::default().fg(theme.text_muted)),
+                Cell::from(" Tracks").style(Style::default().fg(theme.text_muted)),
             ])
             .bottom_margin(1);
 
@@ -247,9 +247,9 @@ pub fn render_main_view(f: &mut Frame, area: Rect, state: &AppState) {
                     let true_idx = start_idx + offset;
                     let is_selected = true_idx == state.selected_index;
                     let row_style = if is_selected {
-                        Theme::selected_row_style()
+                        theme.selected_row_style()
                     } else {
-                        Style::default().fg(Theme::TEXT_PRIMARY)
+                        Style::default().fg(theme.text_primary)
                     };
 
                     Row::new(vec![
@@ -301,13 +301,13 @@ pub fn render_main_view(f: &mut Frame, area: Rect, state: &AppState) {
             };
 
             let block = Block::default()
-                .title(Span::styled(title_text, Theme::title_style()))
+                .title(Span::styled(title_text, theme.title_style()))
                 .borders(Borders::ALL)
-                .border_style(Theme::border_style(focused));
+                .border_style(theme.border_style(focused));
 
             let header = Row::new(vec![
-                Cell::from(" # ").style(Style::default().fg(Theme::TEXT_MUTED)),
-                Cell::from(" Artist Name").style(Style::default().fg(Theme::TEXT_MUTED)),
+                Cell::from(" # ").style(Style::default().fg(theme.text_muted)),
+                Cell::from(" Artist Name").style(Style::default().fg(theme.text_muted)),
             ])
             .bottom_margin(1);
 
@@ -318,9 +318,9 @@ pub fn render_main_view(f: &mut Frame, area: Rect, state: &AppState) {
                     let true_idx = start_idx + offset;
                     let is_selected = true_idx == state.selected_index;
                     let row_style = if is_selected {
-                        Theme::selected_row_style()
+                        theme.selected_row_style()
                     } else {
-                        Style::default().fg(Theme::TEXT_PRIMARY)
+                        Style::default().fg(theme.text_primary)
                     };
 
                     Row::new(vec![

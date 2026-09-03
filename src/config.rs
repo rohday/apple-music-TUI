@@ -14,6 +14,8 @@ const APPLICATION: &str = "appleTUI";
 
 pub const DEFAULT_FALLBACK_DEVELOPER_TOKEN: &str = "eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiIsImtpZCI6IldlYlBsYXlLaWQifQ.eyJpc3MiOiJBTVBXZWJQbGF5IiwiaWF0IjoxNzg2NjMyOTI0LCJleHAiOjE3OTI2ODA5MjQsInJvb3RfaHR0cHNfb3JpZ2luIjpbImFwcGxlLmNvbSJdfQ.hBgj61sZf-y7bmuvT-joXAUAcf7TVJ51732xnH5vFkLHOmsQHxVqGMYUuI4h8c0-RX3fRY3moylhLW8fewFJyw";
 
+use crate::ui::theme::ThemePreset;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub volume: u8,
@@ -21,6 +23,8 @@ pub struct Config {
     pub browser_path: Option<PathBuf>,
     pub mock_mode: bool,
     pub tick_rate_ms: u64,
+    #[serde(default)]
+    pub theme: ThemePreset,
 }
 
 impl Default for Config {
@@ -31,6 +35,7 @@ impl Default for Config {
             browser_path: None,
             mock_mode: false,
             tick_rate_ms: 250,
+            theme: ThemePreset::AppleDark,
         }
     }
 }

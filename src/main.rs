@@ -136,6 +136,7 @@ async fn main() -> Result<()> {
         .await
         .unwrap_or_else(|_| "us".to_string());
     state.volume = config.volume;
+    state.theme = config.theme;
 
     if is_auth {
         // Preload initial library songs & playlists

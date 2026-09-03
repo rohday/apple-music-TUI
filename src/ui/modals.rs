@@ -1,5 +1,4 @@
 use crate::app::state::{AppState, ModalState};
-use crate::ui::theme::Theme;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -7,6 +6,7 @@ use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap};
 use ratatui::Frame;
 
 pub fn render_modals(f: &mut Frame, area: Rect, state: &AppState) {
+    let theme = state.theme.theme();
     match &state.modal {
         ModalState::None => {}
         ModalState::Search => {
@@ -14,9 +14,9 @@ pub fn render_modals(f: &mut Frame, area: Rect, state: &AppState) {
             f.render_widget(Clear, popup);
 
             let block = Block::default()
-                .title(Span::styled(" Search Apple Music ", Theme::title_style()))
+                .title(Span::styled(" Search Apple Music ", theme.title_style()))
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(Theme::ACCENT));
+                .border_style(Style::default().fg(theme.accent));
 
             let input_text = format!(" Query: {}_", state.text_input_buffer);
             let instructions = "\n Press [Enter] to Search, [Esc] to Cancel";
@@ -24,11 +24,11 @@ pub fn render_modals(f: &mut Frame, area: Rect, state: &AppState) {
             let paragraph = Paragraph::new(vec![
                 Line::from(Span::styled(
                     input_text,
-                    Style::default().fg(Theme::TEXT_PRIMARY),
+                    Style::default().fg(theme.text_primary),
                 )),
                 Line::from(Span::styled(
                     instructions,
-                    Style::default().fg(Theme::TEXT_MUTED),
+                    Style::default().fg(theme.text_muted),
                 )),
             ])
             .block(block);
@@ -40,9 +40,9 @@ pub fn render_modals(f: &mut Frame, area: Rect, state: &AppState) {
             f.render_widget(Clear, popup);
 
             let block = Block::default()
-                .title(Span::styled(" Create New Playlist ", Theme::title_style()))
+                .title(Span::styled(" Create New Playlist ", theme.title_style()))
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(Theme::ACCENT));
+                .border_style(Style::default().fg(theme.accent));
 
             let input_text = format!(" Name: {}_", state.text_input_buffer);
             let instructions = "\n Press [Enter] to Confirm, [Esc] to Cancel";
@@ -50,11 +50,11 @@ pub fn render_modals(f: &mut Frame, area: Rect, state: &AppState) {
             let paragraph = Paragraph::new(vec![
                 Line::from(Span::styled(
                     input_text,
-                    Style::default().fg(Theme::TEXT_PRIMARY),
+                    Style::default().fg(theme.text_primary),
                 )),
                 Line::from(Span::styled(
                     instructions,
-                    Style::default().fg(Theme::TEXT_MUTED),
+                    Style::default().fg(theme.text_muted),
                 )),
             ])
             .block(block);
@@ -68,10 +68,10 @@ pub fn render_modals(f: &mut Frame, area: Rect, state: &AppState) {
             let block = Block::default()
                 .title(Span::styled(
                     format!(" Add '{}' to Playlist ", song.name),
-                    Theme::title_style(),
+                    theme.title_style(),
                 ))
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(Theme::ACCENT));
+                .border_style(Style::default().fg(theme.accent));
 
             let viewport_height = (popup.height.saturating_sub(2) as usize).max(1);
             let (start_idx, end_idx) = crate::ui::main_view::calculate_viewport_range(
@@ -92,9 +92,9 @@ pub fn render_modals(f: &mut Frame, area: Rect, state: &AppState) {
                     let true_idx = start_idx + offset;
                     let is_sel = true_idx == state.add_to_playlist_index;
                     let style = if is_sel {
-                        Theme::selected_row_style()
+                        theme.selected_row_style()
                     } else {
-                        Style::default().fg(Theme::TEXT_PRIMARY)
+                        Style::default().fg(theme.text_primary)
                     };
                     ListItem::new(format!("  {} {}", if is_sel { ">" } else { " " }, pl.name))
                         .style(style)
@@ -111,16 +111,16 @@ pub fn render_modals(f: &mut Frame, area: Rect, state: &AppState) {
             let block = Block::default()
                 .title(Span::styled(
                     " Keyboard Shortcuts & Help ",
-                    Theme::title_style(),
+                    theme.title_style(),
                 ))
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(Theme::SECONDARY));
+                .border_style(Style::default().fg(theme.secondary));
 
             let help_text = vec![
                 Line::from(Span::styled(
                     "Navigation:",
                     Style::default()
-                        .fg(Theme::ACCENT)
+                        .fg(theme.accent)
                         .add_modifier(Modifier::BOLD),
                 )),
                 Line::from("  ↑ / k, ↓ / j     : Move selection up / down"),
@@ -132,7 +132,7 @@ pub fn render_modals(f: &mut Frame, area: Rect, state: &AppState) {
                 Line::from(Span::styled(
                     "Playback:",
                     Style::default()
-                        .fg(Theme::ACCENT)
+                        .fg(theme.accent)
                         .add_modifier(Modifier::BOLD),
                 )),
                 Line::from("  Space            : Toggle Play / Pause"),
@@ -144,9 +144,10 @@ pub fn render_modals(f: &mut Frame, area: Rect, state: &AppState) {
                 Line::from(Span::styled(
                     "Features & Actions:",
                     Style::default()
-                        .fg(Theme::ACCENT)
+                        .fg(theme.accent)
                         .add_modifier(Modifier::BOLD),
                 )),
+                Line::from("  t                : Cycle themes (Apple Dark, Catppuccin, Tokyo Night, Gruvbox, Nord)"),
                 Line::from("  /                : Open Catalog Search"),
                 Line::from("  c                : Create new playlist (in Playlists view)"),
                 Line::from("  a                : Add selected track to playlist"),
@@ -164,9 +165,9 @@ pub fn render_modals(f: &mut Frame, area: Rect, state: &AppState) {
             f.render_widget(Clear, popup);
 
             let block = Block::default()
-                .title(Span::styled(" Notification ", Theme::title_style()))
+                .title(Span::styled(" Notification ", theme.title_style()))
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(Theme::ACCENT));
+                .border_style(Style::default().fg(theme.accent));
 
             let paragraph = Paragraph::new(format!("\n {}\n\n Press [Esc] to dismiss", msg))
                 .block(block)
@@ -181,15 +182,15 @@ pub fn render_modals(f: &mut Frame, area: Rect, state: &AppState) {
             let block = Block::default()
                 .title(Span::styled(
                     " Apple Music Login Required ",
-                    Theme::title_style(),
+                    theme.title_style(),
                 ))
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(Theme::ACCENT));
+                .border_style(Style::default().fg(theme.accent));
 
             let text = vec![
                 Line::from(Span::styled(
                     "You are not logged in to Apple Music.",
-                    Style::default().fg(Theme::TEXT_PRIMARY),
+                    Style::default().fg(theme.text_primary),
                 )),
                 Line::from(""),
                 Line::from("To access your library and stream full tracks:"),
@@ -198,13 +199,11 @@ pub fn render_modals(f: &mut Frame, area: Rect, state: &AppState) {
                 Line::from(""),
                 Line::from(Span::styled(
                     "Press [Esc] to continue in preview / mock mode.",
-                    Style::default().fg(Theme::TEXT_MUTED),
+                    Style::default().fg(theme.text_muted),
                 )),
             ];
 
-            let paragraph = Paragraph::new(text)
-                .block(block)
-                .alignment(Alignment::Center);
+            let paragraph = Paragraph::new(text).block(block);
             f.render_widget(paragraph, popup);
         }
     }

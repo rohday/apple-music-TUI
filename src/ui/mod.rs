@@ -46,10 +46,11 @@ pub fn draw(f: &mut Frame, state: &AppState) {
 }
 
 fn render_header(f: &mut Frame, area: Rect, state: &AppState) {
+    let theme = state.theme.theme();
     let auth_badge = if state.is_authenticated {
         Span::styled(
             format!(" [{}]", state.storefront.to_uppercase()),
-            Style::default().fg(theme::Theme::TEXT_MUTED),
+            Style::default().fg(theme.text_muted),
         )
     } else {
         Span::styled(
@@ -61,13 +62,13 @@ fn render_header(f: &mut Frame, area: Rect, state: &AppState) {
     let status_text = state
         .status_message
         .as_deref()
-        .unwrap_or("Press '?' for Help | '/' to Search | 'q' to Quit");
+        .unwrap_or("Press '?' Help | '/' Search | 't' Theme | 'q' Quit");
 
     let left_header = Line::from(vec![
         Span::styled(
-            " appleTUI",
+            " AppleTUI",
             Style::default()
-                .fg(theme::Theme::ACCENT)
+                .fg(theme.accent)
                 .add_modifier(Modifier::BOLD),
         ),
         auth_badge,
@@ -75,7 +76,7 @@ fn render_header(f: &mut Frame, area: Rect, state: &AppState) {
 
     let right_header = Line::from(vec![Span::styled(
         status_text,
-        Style::default().fg(theme::Theme::TEXT_MUTED),
+        Style::default().fg(theme.text_muted),
     )]);
 
     let chunks = Layout::default()

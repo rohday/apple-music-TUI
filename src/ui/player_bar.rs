@@ -1,16 +1,16 @@
 use crate::app::state::AppState;
 use crate::playback::types::PlaybackState;
-use crate::ui::theme::Theme;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Gauge, Paragraph};
 use ratatui::Frame;
 
 pub fn render_player_bar(f: &mut Frame, area: Rect, state: &AppState) {
+    let theme = state.theme.theme();
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Theme::BORDER_UNFOCUSED));
+        .border_style(Style::default().fg(theme.border_unfocused));
 
     let inner = block.inner(area);
     f.render_widget(block, area);
@@ -54,24 +54,24 @@ pub fn render_player_bar(f: &mut Frame, area: Rect, state: &AppState) {
         Span::styled(
             status_icon,
             Style::default()
-                .fg(Theme::ACCENT)
+                .fg(theme.accent)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             format!(" {} ", track_title),
             Style::default()
-                .fg(Theme::TEXT_PRIMARY)
+                .fg(theme.text_primary)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             format!("- {} ", artist_album),
-            Style::default().fg(Theme::TEXT_MUTED),
+            Style::default().fg(theme.text_muted),
         ),
     ]);
 
     let time_line = Line::from(vec![Span::styled(
         time_info,
-        Style::default().fg(Theme::TEXT_PRIMARY),
+        Style::default().fg(theme.text_primary),
     )]);
 
     let row1 = Layout::default()
@@ -90,8 +90,8 @@ pub fn render_player_bar(f: &mut Frame, area: Rect, state: &AppState) {
     let gauge = Gauge::default()
         .gauge_style(
             Style::default()
-                .fg(Theme::ACCENT)
-                .bg(Color::Rgb(40, 40, 50)),
+                .fg(theme.accent)
+                .bg(theme.highlight_bg),
         )
         .ratio(ratio)
         .label("");
@@ -100,18 +100,18 @@ pub fn render_player_bar(f: &mut Frame, area: Rect, state: &AppState) {
     // 3. Controls and Volume
     let shuffle_style = if state.playback.shuffle {
         Style::default()
-            .fg(Theme::ACCENT)
+            .fg(theme.accent)
             .add_modifier(Modifier::BOLD)
     } else {
-        Style::default().fg(Theme::TEXT_MUTED)
+        Style::default().fg(theme.text_muted)
     };
 
     let repeat_style = if state.playback.repeat != crate::playback::types::RepeatMode::Off {
         Style::default()
-            .fg(Theme::ACCENT)
+            .fg(theme.accent)
             .add_modifier(Modifier::BOLD)
     } else {
-        Style::default().fg(Theme::TEXT_MUTED)
+        Style::default().fg(theme.text_muted)
     };
 
     let controls_line = if area.width < 90 {
