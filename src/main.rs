@@ -104,7 +104,7 @@ async fn main() -> Result<()> {
 
     let is_auth = auth.is_authenticated() || config.mock_mode;
 
-    let client = if config.mock_mode {
+    let mut client = if config.mock_mode {
         AppleMusicClient::new_mock()
     } else {
         AppleMusicClient::new(auth.developer_token.clone(), auth.music_user_token.clone())
@@ -114,16 +114,16 @@ async fn main() -> Result<()> {
     let playback = PlaybackEngine::new(config.browser_path.clone(), config.mock_mode).await?;
 
     // Setup terminal
+    let guard = TerminalGuard;
     enable_raw_mode()?;
     let mut stdout_handle = stdout();
     execute!(stdout_handle, EnterAlternateScreen, crossterm::cursor::Hide)?;
-    let _guard = TerminalGuard;
 
     // Set panic hook for safety
     std::panic::set_hook(Box::new(|info| {
         let _ = disable_raw_mode();
         let _ = execute!(stdout(), LeaveAlternateScreen, crossterm::cursor::Show);
-        eprintln!("Panic occurred: {:?}", info);
+        eprintln!("Panic occurred: {info:?}");
     }));
 
     let backend = CrosstermBackend::new(stdout_handle);
@@ -137,22 +137,33 @@ async fn main() -> Result<()> {
         .unwrap_or_else(|_| "us".to_string());
     state.volume = config.volume;
 
-    // Preload initial library songs & playlists
-    match client.get_library_songs(100, 0).await {
-        Ok(songs) => {
-            state.songs = songs;
+    if is_auth {
+        // Preload initial library songs & playlists
+        match client.get_library_songs(100, 0).await {
+            Ok(songs) => {
+                state.songs = songs;
+            }
+            Err(e) => {
+                state.set_status(format!("Error loading library: {e}"));
+            }
         }
-        Err(e) => {
-            state.set_status(format!("Error loading library: {}", e));
+        if let Ok(playlists) = client.get_library_playlists().await {
+            state.playlists = playlists;
         }
-    }
-    if let Ok(playlists) = client.get_library_playlists().await {
-        state.playlists = playlists;
+    } else {
+        state.open_auth_prompt();
     }
 
     let mut event_stream = EventStream::new();
     let status_rx_arc = playback.get_status_receiver();
     let mut ticker = tokio::time::interval(Duration::from_millis(config.tick_rate_ms));
+
+    #[cfg(unix)]
+    let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+    #[cfg(unix)]
+    let mut sigint = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::interrupt())?;
+    #[cfg(unix)]
+    let mut sighup = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::hangup())?;
 
     while !state.should_quit {
         terminal.draw(|f| {
@@ -166,6 +177,40 @@ async fn main() -> Result<()> {
             Some(Ok(event)) = event_stream.next() => {
                 if let Event::Key(key) = event {
                     handle_key_event(key, &mut state, &client, &playback).await?;
+                    if state.pending_login {
+                        state.pending_login = false;
+                        let _ = disable_raw_mode();
+                        let _ = execute!(stdout(), LeaveAlternateScreen, crossterm::cursor::Show);
+                        println!("\n[appleTUI] Launching Apple Music browser login...");
+                        match launch_interactive_login().await {
+                            Ok(new_auth) => {
+                                println!("[appleTUI] Authentication successful! Updating session...");
+                                state.is_authenticated = true;
+                                client = AppleMusicClient::new(
+                                    new_auth.developer_token,
+                                    new_auth.music_user_token,
+                                )
+                                .unwrap_or_else(|_| AppleMusicClient::new_mock());
+                                if let Ok(storefront) = client.get_storefront().await {
+                                    state.storefront = storefront;
+                                }
+                                if let Ok(songs) = client.get_library_songs(100, 0).await {
+                                    state.songs = songs;
+                                }
+                                if let Ok(playlists) = client.get_library_playlists().await {
+                                    state.playlists = playlists;
+                                }
+                                state.set_status("Logged in successfully!");
+                            }
+                            Err(e) => {
+                                state.set_status(format!("Login failed: {e}"));
+                            }
+                        }
+                        let _ = enable_raw_mode();
+                        let mut stdout_handle = stdout();
+                        let _ = execute!(stdout_handle, EnterAlternateScreen, crossterm::cursor::Hide);
+                        terminal.clear()?;
+                    }
                 }
             }
             status_opt = async {
@@ -176,12 +221,21 @@ async fn main() -> Result<()> {
                     state.playback = status;
                 }
             }
+            _ = sigterm.recv() => {
+                state.should_quit = true;
+            }
+            _ = sigint.recv() => {
+                state.should_quit = true;
+            }
+            _ = sighup.recv() => {
+                state.should_quit = true;
+            }
         }
     }
 
     // Stop playback and cleanup
     let _ = playback.send_command(PlaybackCommand::Stop).await;
-    drop(_guard);
+    drop(guard);
 
     Ok(())
 }

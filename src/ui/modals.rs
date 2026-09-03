@@ -73,12 +73,24 @@ pub fn render_modals(f: &mut Frame, area: Rect, state: &AppState) {
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(Theme::ACCENT));
 
-            let items: Vec<ListItem> = state
-                .playlists
+            let viewport_height = (popup.height.saturating_sub(2) as usize).max(1);
+            let (start_idx, end_idx) = crate::ui::main_view::calculate_viewport_range(
+                state.add_to_playlist_index,
+                state.playlists.len(),
+                viewport_height,
+            );
+            let visible_playlists = if state.playlists.is_empty() {
+                &[]
+            } else {
+                &state.playlists[start_idx..end_idx]
+            };
+
+            let items: Vec<ListItem> = visible_playlists
                 .iter()
                 .enumerate()
-                .map(|(idx, pl)| {
-                    let is_sel = idx == state.add_to_playlist_index;
+                .map(|(offset, pl)| {
+                    let true_idx = start_idx + offset;
+                    let is_sel = true_idx == state.add_to_playlist_index;
                     let style = if is_sel {
                         Theme::selected_row_style()
                     } else {
@@ -93,7 +105,7 @@ pub fn render_modals(f: &mut Frame, area: Rect, state: &AppState) {
             f.render_widget(list, popup);
         }
         ModalState::Help => {
-            let popup = centered_rect(70, 60, area);
+            let popup = centered_rect(75, 80, area);
             f.render_widget(Clear, popup);
 
             let block = Block::default()

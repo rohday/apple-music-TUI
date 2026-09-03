@@ -120,3 +120,50 @@ fn test_ui_draw_modals() {
         })
         .unwrap();
 }
+
+#[test]
+fn test_ui_draw_scrolled_table_renders_selected_row() {
+    let backend = TestBackend::new(100, 20);
+    let mut terminal = Terminal::new(backend).unwrap();
+
+    let mut state = AppState::new();
+    state.songs = (0..50)
+        .map(|i| Song {
+            id: format!("song_{i}"),
+            name: format!("UniqueSongName_{i}"),
+            artist_name: "Artist".to_string(),
+            album_name: Some("Album".to_string()),
+            duration_in_millis: 180_000,
+            track_number: Some(i + 1),
+            release_date: None,
+            url: None,
+            catalog_id: None,
+        })
+        .collect();
+
+    state.focused_panel = FocusedPanel::MainContent;
+    state.active_view = ActiveView::LibrarySongs;
+    state.selected_index = 35;
+
+    terminal
+        .draw(|f| {
+            draw(f, &state);
+        })
+        .unwrap();
+
+    let buffer = terminal.backend().buffer();
+    // In a 20-line terminal with header and footer, only ~12 rows fit.
+    // With windowed scrolling, row 35 MUST be rendered inside the buffer!
+    let mut rendered_text = String::new();
+    for y in 0..buffer.area.height {
+        for x in 0..buffer.area.width {
+            rendered_text.push_str(buffer[(x, y)].symbol());
+        }
+        rendered_text.push('\n');
+    }
+
+    assert!(
+        rendered_text.contains("UniqueSongName_35"),
+        "The selected row (index 35) must be visible in the rendered buffer when scrolled!"
+    );
+}

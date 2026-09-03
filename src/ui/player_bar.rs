@@ -114,23 +114,41 @@ pub fn render_player_bar(f: &mut Frame, area: Rect, state: &AppState) {
         Style::default().fg(Theme::TEXT_MUTED)
     };
 
-    let controls_line = Line::from(vec![
-        Span::raw("[p] |<<  "),
-        Span::raw("[Space] >/||  "),
-        Span::raw("[n] >>|   "),
-        Span::styled(
-            format!(
-                "[s] Shuffle: {}   ",
-                if state.playback.shuffle { "On" } else { "Off" }
+    let controls_line = if area.width < 90 {
+        Line::from(vec![
+            Span::raw("[p]⏮ [Space]▶⏸ [n]⏭  "),
+            Span::styled(
+                format!(
+                    "[s]Shuf:{} ",
+                    if state.playback.shuffle { "On" } else { "Off" }
+                ),
+                shuffle_style,
             ),
-            shuffle_style,
-        ),
-        Span::styled(
-            format!("[r] Repeat: {}   ", state.playback.repeat.display_label()),
-            repeat_style,
-        ),
-        Span::raw(format!("[+/-] Vol: {}%", state.playback.volume)),
-    ]);
+            Span::styled(
+                format!("[r]Rep:{} ", state.playback.repeat.display_label()),
+                repeat_style,
+            ),
+            Span::raw(format!("[+/-]Vol:{}%", state.playback.volume)),
+        ])
+    } else {
+        Line::from(vec![
+            Span::raw("[p] |<<  "),
+            Span::raw("[Space] >/||  "),
+            Span::raw("[n] >>|   "),
+            Span::styled(
+                format!(
+                    "[s] Shuffle: {}   ",
+                    if state.playback.shuffle { "On" } else { "Off" }
+                ),
+                shuffle_style,
+            ),
+            Span::styled(
+                format!("[r] Repeat: {}   ", state.playback.repeat.display_label()),
+                repeat_style,
+            ),
+            Span::raw(format!("[+/-] Vol: {}%", state.playback.volume)),
+        ])
+    };
 
     f.render_widget(Paragraph::new(controls_line), chunks[2]);
 }

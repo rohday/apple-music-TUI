@@ -6,7 +6,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 #[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 
 const QUALIFIER: &str = "com";
 const ORGANIZATION: &str = "appleTUI";
@@ -57,6 +57,20 @@ impl Config {
     }
 
     pub fn clean_stale_browser_locks(profile_dir: &Path) {
+        let lock_path = profile_dir.join("SingletonLock");
+        if let Ok(target) = fs::read_link(&lock_path) {
+            let target_str = target.to_string_lossy();
+            if let Some(pid_str) = target_str.rsplit('-').next() {
+                if let Ok(pid) = pid_str.parse::<i32>() {
+                    let is_alive = unsafe { libc::kill(pid, 0) == 0 };
+                    if is_alive {
+                        // Active browser running; do not remove locks
+                        return;
+                    }
+                }
+            }
+        }
+
         for name in &["SingletonLock", "SingletonCookie", "SingletonSocket"] {
             let p = profile_dir.join(name);
             if p.symlink_metadata().is_ok() {
@@ -98,8 +112,13 @@ impl Config {
             fs::create_dir_all(parent)?;
         }
         let json = serde_json::to_string_pretty(self)?;
-        let mut file = File::create(path)?;
-        file.write_all(json.as_bytes())?;
+        let tmp_path = path.with_extension("tmp");
+        {
+            let mut file = File::create(&tmp_path)?;
+            file.write_all(json.as_bytes())?;
+            file.sync_all()?;
+        }
+        fs::rename(&tmp_path, path)?;
         Ok(())
     }
 }
@@ -144,16 +163,32 @@ impl AuthConfig {
             fs::create_dir_all(parent)?;
         }
         let json = serde_json::to_string_pretty(self)?;
-        let mut file = File::create(path)?;
-        file.write_all(json.as_bytes())?;
+        let tmp_path = path.with_extension("tmp");
+
+        {
+            #[cfg(unix)]
+            let mut options = fs::OpenOptions::new();
+            #[cfg(unix)]
+            options.write(true).create(true).truncate(true).mode(0o600);
+
+            #[cfg(not(unix))]
+            let mut options = fs::OpenOptions::new();
+            #[cfg(not(unix))]
+            options.write(true).create(true).truncate(true);
+
+            let mut file = options.open(&tmp_path)?;
+            file.write_all(json.as_bytes())?;
+            file.sync_all()?;
+        }
 
         #[cfg(unix)]
         {
-            let mut perms = fs::metadata(path)?.permissions();
+            let mut perms = fs::metadata(&tmp_path)?.permissions();
             perms.set_mode(0o600);
-            fs::set_permissions(path, perms)?;
+            let _ = fs::set_permissions(&tmp_path, perms);
         }
 
+        fs::rename(&tmp_path, path)?;
         Ok(())
     }
 

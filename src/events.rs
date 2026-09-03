@@ -106,7 +106,21 @@ pub async fn handle_key_event(
             }
             _ => return Ok(()),
         },
-        ModalState::Help | ModalState::Notification(_) | ModalState::AuthPrompt => {
+        ModalState::AuthPrompt => {
+            if key.code == KeyCode::Char('l') || key.code == KeyCode::Char('L') {
+                state.pending_login = true;
+                state.close_modal();
+                return Ok(());
+            }
+            if key.code == KeyCode::Esc
+                || key.code == KeyCode::Char('q')
+                || key.code == KeyCode::Enter
+            {
+                state.close_modal();
+                return Ok(());
+            }
+        }
+        ModalState::Help | ModalState::Notification(_) => {
             if key.code == KeyCode::Esc
                 || key.code == KeyCode::Char('q')
                 || key.code == KeyCode::Enter
@@ -126,6 +140,10 @@ pub async fn handle_key_event(
         }
         KeyCode::Char('q') => {
             state.should_quit = true;
+            return Ok(());
+        }
+        KeyCode::Char('L') => {
+            state.pending_login = true;
             return Ok(());
         }
         KeyCode::Char('?') => {
@@ -278,7 +296,9 @@ pub async fn handle_key_event(
             }
             KeyCode::Left | KeyCode::Char('h') | KeyCode::Esc => {
                 if state.active_view == ActiveView::PlaylistDetail {
-                    state.active_view = ActiveView::Playlists;
+                    let prev_view = ActiveView::all_sidebar_views()[state.sidebar_index.min(ActiveView::all_sidebar_views().len() - 1)];
+                    state.active_view = prev_view;
+                    state.active_playlist = None;
                 } else {
                     state.focused_panel = FocusedPanel::Sidebar;
                 }
@@ -317,8 +337,58 @@ pub async fn handle_key_event(
                         }
                     }
                 }
-                _ => {}
+                ActiveView::LibraryAlbums => {
+                    if let Some(alb) = state.albums.get(state.selected_index).cloned() {
+                        state.set_status(format!("Loading album '{}'...", alb.name));
+                        if let Ok(tracks) = client.get_album_tracks(&alb.id).await {
+                            state.playlist_tracks = tracks;
+                            state.active_playlist = Some(crate::api::models::Playlist {
+                                id: alb.id.clone(),
+                                name: alb.name.clone(),
+                                description: Some(alb.artist_name.clone()),
+                                is_public: false,
+                                track_count: alb.track_count,
+                            });
+                            state.active_view = ActiveView::PlaylistDetail;
+                            state.selected_index = 0;
+                        }
+                    }
+                }
+                ActiveView::LibraryArtists => {
+                    if let Some(art) = state.artists.get(state.selected_index).cloned() {
+                        state.set_status(format!("Loading artist '{}'...", art.name));
+                        if let Ok(tracks) = client.get_artist_tracks(&art.id).await {
+                            let track_count = Some(tracks.len() as u32);
+                            state.playlist_tracks = tracks;
+                            state.active_playlist = Some(crate::api::models::Playlist {
+                                id: art.id.clone(),
+                                name: art.name.clone(),
+                                description: Some("Artist Tracks".to_string()),
+                                is_public: false,
+                                track_count,
+                            });
+                            state.active_view = ActiveView::PlaylistDetail;
+                            state.selected_index = 0;
+                        }
+                    }
+                }
             },
+            KeyCode::Char('d') | KeyCode::Delete if state.active_view == ActiveView::PlaylistDetail => {
+                if let Some(track) = state.playlist_tracks.get(state.selected_index).cloned() {
+                    if let Some(pl_id) = state.active_playlist.as_ref().map(|p| p.id.clone()) {
+                        state.set_status(format!("Removing '{}'...", track.name));
+                        if let Err(e) = client.delete_playlist_track(&pl_id, &track.id).await {
+                            state.set_status(format!("Failed to delete track: {e}"));
+                        } else {
+                            state.playlist_tracks.remove(state.selected_index);
+                            if state.selected_index >= state.playlist_tracks.len() && !state.playlist_tracks.is_empty() {
+                                state.selected_index = state.playlist_tracks.len() - 1;
+                            }
+                            state.set_status(format!("Removed '{}' from playlist", track.name));
+                        }
+                    }
+                }
+            }
             KeyCode::Char('a') => {
                 if let Some(song) = state.get_selected_song() {
                     state.open_add_to_playlist(song);
@@ -335,6 +405,10 @@ pub async fn handle_key_event(
 }
 
 async fn load_view_data(state: &mut AppState, client: &AppleMusicClient) -> Result<()> {
+    if !state.is_authenticated && !client.is_mock() {
+        return Ok(());
+    }
+
     match state.active_view {
         ActiveView::LibrarySongs if state.songs.is_empty() => {
             if let Ok(songs) = client.get_library_songs(100, 0).await {

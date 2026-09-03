@@ -12,7 +12,7 @@ fn test_playback_status_progress() {
         ..Default::default()
     };
 
-    assert_eq!(status.progress_ratio(), 60.0 / 180.0);
+    assert!((status.progress_ratio() - (60.0 / 180.0)).abs() < f64::EPSILON);
     assert_eq!(status.formatted_position(), "1:00 / 3:00");
 }
 
@@ -71,3 +71,34 @@ async fn test_playback_engine_mock_commands() {
     let status = engine.get_current_status().await;
     assert_eq!(status.volume, 90);
 }
+
+#[tokio::test]
+async fn test_playback_engine_stop_and_subsequent_play() {
+    let engine = PlaybackEngine::new(None, true).await.unwrap();
+    let song = Song {
+        id: "test_1".to_string(),
+        name: "Test Track".to_string(),
+        artist_name: "Test Artist".to_string(),
+        album_name: Some("Test Album".to_string()),
+        duration_in_millis: 180_000,
+        track_number: None,
+        release_date: None,
+        url: None,
+        catalog_id: None,
+    };
+
+    engine.send_command(PlaybackCommand::PlaySong(song.clone())).await.unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    assert_eq!(engine.get_current_status().await.state, PlaybackState::Playing);
+
+    engine.send_command(PlaybackCommand::Stop).await.unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    assert_eq!(engine.get_current_status().await.state, PlaybackState::Stopped);
+
+    // Engine must NOT be permanently killed by Stop; it must accept subsequent play commands!
+    let res = engine.send_command(PlaybackCommand::PlaySong(song)).await;
+    assert!(res.is_ok(), "Engine should still accept commands after Stop");
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    assert_eq!(engine.get_current_status().await.state, PlaybackState::Playing);
+}
+

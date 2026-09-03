@@ -11,18 +11,35 @@ use tokio::sync::mpsc::{self, Receiver, Sender};
 use tokio::sync::Mutex;
 use tracing::{error, info, warn};
 
+use std::sync::atomic::{AtomicU32, Ordering};
+
 pub struct PlaybackEngine {
     cmd_sender: Sender<PlaybackCommand>,
     status_receiver: Arc<Mutex<Receiver<PlaybackStatus>>>,
     current_status: Arc<Mutex<PlaybackStatus>>,
+    browser_pid: Arc<AtomicU32>,
     is_mock: bool,
 }
 
+impl Drop for PlaybackEngine {
+    fn drop(&mut self) {
+        let pid = self.browser_pid.load(Ordering::SeqCst);
+        if pid > 0 {
+            unsafe {
+                libc::kill(pid as i32, libc::SIGTERM);
+                libc::kill(-(pid as i32), libc::SIGTERM);
+            }
+        }
+    }
+}
+
 impl PlaybackEngine {
+    #[allow(clippy::unused_async)]
     pub async fn new(browser_bin: Option<PathBuf>, mock_mode: bool) -> Result<Self> {
         let (cmd_tx, cmd_rx) = mpsc::channel::<PlaybackCommand>(64);
         let (status_tx, status_rx) = mpsc::channel::<PlaybackStatus>(64);
         let current_status = Arc::new(Mutex::new(PlaybackStatus::default()));
+        let browser_pid = Arc::new(AtomicU32::new(0));
 
         if mock_mode {
             info!("Initializing mock playback engine");
@@ -32,6 +49,7 @@ impl PlaybackEngine {
                 cmd_sender: cmd_tx,
                 status_receiver: Arc::new(Mutex::new(status_rx)),
                 current_status,
+                browser_pid,
                 is_mock: true,
             });
         }
@@ -45,6 +63,7 @@ impl PlaybackEngine {
                 cmd_sender: cmd_tx,
                 status_receiver: Arc::new(Mutex::new(status_rx)),
                 current_status,
+                browser_pid,
                 is_mock: true,
             });
         }
@@ -53,9 +72,10 @@ impl PlaybackEngine {
         info!("Launching headless browser from: {:?}", browser_path);
 
         let cur_status_clone = current_status.clone();
+        let browser_pid_clone = browser_pid.clone();
         tokio::spawn(async move {
             if let Err(e) =
-                run_browser_playback_loop(browser_path, cmd_rx, status_tx, cur_status_clone).await
+                run_browser_playback_loop(browser_path, cmd_rx, status_tx, cur_status_clone, browser_pid_clone).await
             {
                 error!("Browser playback loop exited with error: {:?}", e);
             }
@@ -65,6 +85,7 @@ impl PlaybackEngine {
             cmd_sender: cmd_tx,
             status_receiver: Arc::new(Mutex::new(status_rx)),
             current_status,
+            browser_pid,
             is_mock: false,
         })
     }
@@ -108,8 +129,10 @@ async fn run_mock_playback_loop(
                 if status.state == PlaybackState::Playing {
                     status.current_time_secs += 0.25;
                     if status.duration_secs > 0.0 && status.current_time_secs >= status.duration_secs {
-                        // Track finished, advance queue
-                        if queue_idx + 1 < queue.len() {
+                        // Track finished, advance queue or repeat
+                        if status.repeat == RepeatMode::One {
+                            status.current_time_secs = 0.0;
+                        } else if queue_idx + 1 < queue.len() {
                             queue_idx += 1;
                             let song = &queue[queue_idx];
                             status.current_song = Some(song.clone());
@@ -130,7 +153,11 @@ async fn run_mock_playback_loop(
                     *status_store.lock().await = status.clone();
                 }
             }
-            Some(cmd) = cmd_rx.recv() => {
+            cmd_opt = cmd_rx.recv() => {
+                let cmd = match cmd_opt {
+                    Some(c) => c,
+                    None => break,
+                };
                 match cmd {
                     PlaybackCommand::PlaySong(song) => {
                         queue = vec![song.clone()];
@@ -208,9 +235,9 @@ async fn run_mock_playback_loop(
                     PlaybackCommand::Stop => {
                         status.state = PlaybackState::Stopped;
                         status.current_time_secs = 0.0;
+                        status.current_song = None;
                         let _ = status_tx.send(status.clone()).await;
                         *status_store.lock().await = status.clone();
-                        break;
                     }
                 }
                 let _ = status_tx.send(status.clone()).await;
@@ -225,6 +252,7 @@ async fn run_browser_playback_loop(
     mut cmd_rx: Receiver<PlaybackCommand>,
     status_tx: Sender<PlaybackStatus>,
     status_store: Arc<Mutex<PlaybackStatus>>,
+    browser_pid: Arc<AtomicU32>,
 ) -> Result<()> {
     let profile_dir = crate::config::Config::get_profile_dir()?;
     crate::config::Config::clean_stale_browser_locks(&profile_dir);
@@ -238,7 +266,6 @@ async fn run_browser_playback_loop(
         .arg("--disable-sync")
         .arg("--autoplay-policy=no-user-gesture-required")
         .arg("--enable-widevine-cdm")
-        .arg("--no-sandbox")
         .arg("--disable-background-timer-throttling")
         .arg("--disable-backgrounding-occluded-windows")
         .arg("--disable-renderer-backgrounding")
@@ -247,6 +274,12 @@ async fn run_browser_playback_loop(
         .map_err(|e| anyhow::anyhow!("BrowserConfig error: {}", e))?;
 
     let (mut browser, mut handler) = Browser::launch(config).await?;
+    if let Some(child) = browser.get_mut_child() {
+        if let Some(pid) = child.inner.id() {
+            browser_pid.store(pid, Ordering::SeqCst);
+            info!("Browser process launched with PID: {}", pid);
+        }
+    }
     let handler_handle = tokio::spawn(async move {
         while let Some(h) = handler.next().await {
             if let Err(e) = h {
@@ -374,7 +407,11 @@ async fn run_browser_playback_loop(
                     }
                 }
             }
-            Some(cmd) = cmd_rx.recv() => {
+            cmd_opt = cmd_rx.recv() => {
+                let cmd = match cmd_opt {
+                    Some(c) => c,
+                    None => break,
+                };
                 match cmd {
                     PlaybackCommand::PlaySong(song) => {
                         let pid = song.playback_id().to_string();
@@ -609,8 +646,9 @@ async fn run_browser_playback_loop(
                     }
                     PlaybackCommand::Stop => {
                         status.state = PlaybackState::Stopped;
+                        status.current_time_secs = 0.0;
+                        status.current_song = None;
                         let _ = page.evaluate("window.MusicKit && window.MusicKit.getInstance().stop();").await;
-                        break;
                     }
                 }
                 let _ = status_tx.send(status.clone()).await;
@@ -619,6 +657,7 @@ async fn run_browser_playback_loop(
         }
     }
 
+    browser_pid.store(0, Ordering::SeqCst);
     let _ = browser.close().await;
     handler_handle.abort();
     Ok(())

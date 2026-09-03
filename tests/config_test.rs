@@ -42,13 +42,25 @@ fn test_config_save_and_load() {
         Some("user_token_abc")
     );
     assert!(loaded_auth.is_authenticated());
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let perms = std::fs::metadata(&auth_path).unwrap().permissions();
+        assert_eq!(perms.mode() & 0o777, 0o600, "auth.json must have 0600 permissions");
+    }
 }
 
 #[test]
 fn test_find_browser_binary() {
-    let browser = find_browser_binary();
-    assert!(
-        browser.is_some(),
-        "Should find a chromium-compatible browser (e.g. brave-browser)"
-    );
+    // If a browser is installed, it returns a valid file path
+    if let Some(path) = find_browser_binary() {
+        assert!(path.is_file(), "Discovered browser binary must be a file");
+    }
+
+    // Verify custom environment variable override works reliably
+    std::env::set_var("CHROME_BIN", "/bin/sh");
+    let custom = find_browser_binary();
+    assert_eq!(custom, Some(std::path::PathBuf::from("/bin/sh")));
+    std::env::remove_var("CHROME_BIN");
 }

@@ -22,6 +22,7 @@ impl ActiveView {
             ActiveView::LibraryArtists,
             ActiveView::Playlists,
             ActiveView::RecentlyPlayed,
+            ActiveView::Queue,
         ]
     }
 
@@ -89,6 +90,7 @@ pub struct AppState {
     pub is_loading: bool,
     pub should_quit: bool,
     pub volume: u8,
+    pub pending_login: bool,
 }
 
 impl Default for AppState {
@@ -124,6 +126,7 @@ impl AppState {
             is_loading: false,
             should_quit: false,
             volume: 80,
+            pending_login: false,
         }
     }
 
@@ -197,6 +200,10 @@ impl AppState {
             ModalState::Help => ModalState::None,
             _ => ModalState::Help,
         };
+    }
+
+    pub fn open_auth_prompt(&mut self) {
+        self.modal = ModalState::AuthPrompt;
     }
 
     pub fn close_modal(&mut self) {

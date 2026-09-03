@@ -121,8 +121,8 @@ impl AppleMusicClient {
             .await
             .context("Failed to send catalog search request")?;
 
-        if resp.status().as_u16() == 401 {
-            bail!("Authentication failed (401 Unauthorized)");
+        if !resp.status().is_success() {
+            bail!("Apple Music API error: status {}", resp.status());
         }
 
         let raw: RawCatalogResponse = resp
@@ -147,8 +147,8 @@ impl AppleMusicClient {
             .await
             .context("Failed to fetch library songs")?;
 
-        if resp.status().as_u16() == 401 {
-            bail!("Authentication required for library access");
+        if !resp.status().is_success() {
+            bail!("Apple Music API error: status {}", resp.status());
         }
 
         let list: RawListResponse<Song> =
@@ -170,6 +170,10 @@ impl AppleMusicClient {
             .send()
             .await?;
 
+        if !resp.status().is_success() {
+            bail!("Apple Music API error: status {}", resp.status());
+        }
+
         let list: RawListResponse<Album> = resp.json().await?;
         Ok(list.data)
     }
@@ -187,6 +191,10 @@ impl AppleMusicClient {
             .query(&[("limit", limit.to_string()), ("offset", offset.to_string())])
             .send()
             .await?;
+
+        if !resp.status().is_success() {
+            bail!("Apple Music API error: status {}", resp.status());
+        }
 
         let list: RawListResponse<Artist> = resp.json().await?;
         Ok(list.data)
@@ -206,6 +214,10 @@ impl AppleMusicClient {
             .await
             .context("Failed to fetch library playlists")?;
 
+        if !resp.status().is_success() {
+            bail!("Apple Music API error: status {}", resp.status());
+        }
+
         let list: RawListResponse<Playlist> =
             resp.json().await.context("Failed to parse playlists")?;
         Ok(list.data)
@@ -223,6 +235,10 @@ impl AppleMusicClient {
             .headers(self.auth_headers())
             .send()
             .await?;
+
+        if !resp.status().is_success() {
+            bail!("Apple Music API error: status {}", resp.status());
+        }
 
         let list: RawListResponse<Song> = resp.json().await?;
         Ok(list.data)
@@ -295,6 +311,89 @@ impl AppleMusicClient {
         Ok(())
     }
 
+    pub async fn delete_playlist_track(
+        &self,
+        playlist_id: &str,
+        track_id: &str,
+    ) -> Result<()> {
+        if self.mock_mode {
+            return Ok(());
+        }
+
+        let url = format!("{}/me/library/playlists/{}/tracks/{}", BASE_URL, playlist_id, track_id);
+        let resp = self
+            .client
+            .delete(&url)
+            .headers(self.auth_headers())
+            .send()
+            .await
+            .context("Failed to delete track from playlist")?;
+
+        if !resp.status().is_success() {
+            bail!("API error deleting track: status {}", resp.status());
+        }
+
+        Ok(())
+    }
+
+    pub async fn get_album_tracks(&self, album_id: &str) -> Result<Vec<Song>> {
+        if self.mock_mode {
+            return Ok(mock_library_songs()
+                .into_iter()
+                .take(4)
+                .map(|mut s| {
+                    s.album_name = Some("Selected Album".to_string());
+                    s
+                })
+                .collect());
+        }
+
+        let url = format!("{}/me/library/albums/{}/tracks", BASE_URL, album_id);
+        let resp = self
+            .client
+            .get(&url)
+            .headers(self.auth_headers())
+            .send()
+            .await
+            .context("Failed to fetch album tracks")?;
+
+        if !resp.status().is_success() {
+            bail!("API error fetching album tracks: status {}", resp.status());
+        }
+
+        let list: RawListResponse<Song> = resp.json().await?;
+        Ok(list.data)
+    }
+
+    pub async fn get_artist_tracks(&self, artist_id: &str) -> Result<Vec<Song>> {
+        if self.mock_mode {
+            return Ok(mock_library_songs()
+                .into_iter()
+                .take(6)
+                .map(|mut s| {
+                    s.artist_name = "Selected Artist".to_string();
+                    s
+                })
+                .collect());
+        }
+
+        let url = format!("{}/me/library/artists/{}/tracks", BASE_URL, artist_id);
+        let resp = self
+            .client
+            .get(&url)
+            .headers(self.auth_headers())
+            .send()
+            .await
+            .context("Failed to fetch artist tracks")?;
+
+        if !resp.status().is_success() {
+            bail!("API error fetching artist tracks: status {}", resp.status());
+        }
+
+        let list: RawListResponse<Song> = resp.json().await?;
+        Ok(list.data)
+    }
+
     pub async fn get_recent_tracks(&self) -> Result<Vec<Song>> {
         if self.mock_mode {
             return Ok(mock_library_songs().into_iter().take(5).collect());
@@ -307,6 +406,10 @@ impl AppleMusicClient {
             .headers(self.auth_headers())
             .send()
             .await?;
+
+        if !resp.status().is_success() {
+            bail!("Apple Music API error: status {}", resp.status());
+        }
 
         let list: RawListResponse<Song> = resp.json().await?;
         Ok(list.data)

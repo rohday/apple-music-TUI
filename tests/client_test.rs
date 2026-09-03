@@ -37,4 +37,13 @@ async fn test_client_creation_and_mock_mode() {
         .add_tracks_to_playlist(&new_pl.id, &["s1", "s2"])
         .await;
     assert!(add_res.is_ok());
+
+    let del_res = client.delete_playlist_track(&new_pl.id, "s1").await;
+    assert!(del_res.is_ok());
+
+    let album_tracks = client.get_album_tracks("alb1").await.unwrap();
+    assert!(!album_tracks.is_empty());
+
+    let artist_tracks = client.get_artist_tracks("art1").await.unwrap();
+    assert!(!artist_tracks.is_empty());
 }

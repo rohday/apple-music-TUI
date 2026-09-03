@@ -18,26 +18,31 @@ pub async fn fetch_live_developer_token() -> Result<String> {
         .text()
         .await?;
 
-    // Search for /assets/index~*.js
+    // Search for script bundles
     let mut js_url = None;
     for line in html.split('\"') {
-        if line.starts_with("/assets/index~") && line.ends_with(".js") {
+        if (line.starts_with("/assets/") || line.starts_with("/us/assets/")) && line.ends_with(".js") {
             js_url = Some(format!("https://music.apple.com{}", line));
-            break;
+            if line.contains("index") {
+                break;
+            }
         }
     }
 
     if let Some(url) = js_url {
-        let js = client.get(&url).send().await?.text().await?;
-        if let Some(pos) = js.find("$c=\"") {
-            let start = pos + 4;
-            if let Some(end) = js[start..].find('\"') {
-                let token = &js[start..start + end];
-                if token.starts_with("eyJ") {
-                    info!(
-                        "Successfully extracted live developer token from Apple Music web bundle"
-                    );
-                    return Ok(token.to_string());
+        if let Ok(resp) = client.get(&url).send().await {
+            if let Ok(js) = resp.text().await {
+                // Search for JWT token in double-quoted strings
+                for candidate in js.split('\"') {
+                    if candidate.starts_with("eyJ") && candidate.len() > 80 {
+                        let parts: Vec<&str> = candidate.split('.').collect();
+                        if parts.len() == 3 {
+                            info!(
+                                "Successfully extracted live developer token from Apple Music web bundle"
+                            );
+                            return Ok(candidate.to_string());
+                        }
+                    }
                 }
             }
         }

@@ -92,3 +92,48 @@ async fn test_event_handler_navigation_and_shortcuts() {
     let status = playback.get_current_status().await;
     assert_eq!(status.state, PlaybackState::Playing);
 }
+
+#[tokio::test]
+async fn test_playlist_track_deletion_and_album_drilldown() {
+    let client = AppleMusicClient::new_mock();
+    let playback = PlaybackEngine::new(None, true).await.unwrap();
+    let mut state = AppState::new();
+
+    // 1. Test album drilldown
+    state.albums = client.get_library_albums(5, 0).await.unwrap();
+    assert!(!state.albums.is_empty());
+    state.active_view = ActiveView::LibraryAlbums;
+    state.focused_panel = FocusedPanel::MainContent;
+    state.selected_index = 0;
+
+    handle_key_event(
+        KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
+        &mut state,
+        &client,
+        &playback,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(state.active_view, ActiveView::PlaylistDetail);
+    assert!(!state.playlist_tracks.is_empty());
+
+    // 2. Test track deletion from playlist detail
+    let initial_count = state.playlist_tracks.len();
+    state.selected_index = 0;
+    let first_track_id = state.playlist_tracks[0].id.clone();
+
+    handle_key_event(
+        KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE),
+        &mut state,
+        &client,
+        &playback,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(state.playlist_tracks.len(), initial_count - 1);
+    if !state.playlist_tracks.is_empty() {
+        assert_ne!(state.playlist_tracks[0].id, first_track_id);
+    }
+}

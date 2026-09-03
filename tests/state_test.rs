@@ -61,3 +61,16 @@ fn test_modal_toggling() {
     state.close_modal();
     assert_eq!(state.modal, ModalState::None);
 }
+
+#[test]
+fn test_auth_prompt_and_login_trigger() {
+    let mut state = AppState::new();
+    assert!(!state.pending_login);
+    assert_eq!(state.modal, ModalState::None);
+
+    state.open_auth_prompt();
+    assert_eq!(state.modal, ModalState::AuthPrompt);
+
+    state.pending_login = true;
+    assert!(state.pending_login);
+}
