@@ -30,7 +30,7 @@ fn test_render_shimmer_progress_bar_lengths_and_states() {
     );
     let zero_text: String = line_zero.spans.iter().map(|s| s.content.as_ref()).collect();
     assert_eq!(zero_text.chars().count(), width);
-    assert!(zero_text.chars().all(|c| c == '─'));
+    assert!(zero_text.chars().all(|c| c == ' '));
 
     // Test 100% full progress
     let line_full = render_shimmer_progress_bar(
@@ -44,5 +44,5 @@ fn test_render_shimmer_progress_bar_lengths_and_states() {
     );
     let full_text: String = line_full.spans.iter().map(|s| s.content.as_ref()).collect();
     assert_eq!(full_text.chars().count(), width);
-    assert!(full_text.ends_with('╸'));
+    assert!(full_text.chars().all(|c| c == '█'));
 }

@@ -220,7 +220,7 @@ fn test_ui_draw_expanded_visualizer_preserves_library() {
         "Library song table must remain visible when visualizer is expanded!"
     );
     assert!(
-        rendered_text.contains("Visualizer [v: Compact]"),
+        rendered_text.contains("Visualizer [v]"),
         "Expanded player bar visualizer badge must be rendered!"
     );
 }

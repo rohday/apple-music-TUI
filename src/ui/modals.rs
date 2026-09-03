@@ -148,7 +148,7 @@ pub fn render_modals(f: &mut Frame, area: Rect, state: &AppState) {
                         .add_modifier(Modifier::BOLD),
                 )),
                 Line::from("  t                : Cycle themes (Apple Dark, Catppuccin, Tokyo Night, Gruvbox, Nord)"),
-                Line::from("  v                : Toggle Braille Wave Ribbon Visualizer (Expanded / Compact)"),
+                Line::from("  v                : Toggle Visualizer"),
                 Line::from("  f                : In-View live search filter"),
                 Line::from("  R                : Start Radio Station for selected song"),
                 Line::from("  y                : Toggle side-by-side synced lyrics panel"),

@@ -15,7 +15,7 @@ pub fn render_player_bar(f: &mut Frame, area: Rect, state: &AppState) {
     };
 
     let title_badge = if state.show_visualizer {
-        " Visualizer [v: Compact] "
+        " Visualizer [v] "
     } else {
         ""
     };
@@ -136,10 +136,10 @@ pub fn render_player_bar(f: &mut Frame, area: Rect, state: &AppState) {
         f.render_widget(Paragraph::new(ribbon_lines), r_area);
     }
 
-    // 3. Shimmer Progress Bar Visualizer (60 FPS Traveling Glow Beam)
+    // 3. Shimmer Progress Bar Visualizer (60 FPS Traveling Glow Beam with Smooth Fade)
     let ratio = state.playback.progress_ratio();
     let glow_color = if is_playing {
-        theme.text_primary
+        ratatui::style::Color::White
     } else {
         theme.accent
     };
@@ -150,11 +150,11 @@ pub fn render_player_bar(f: &mut Frame, area: Rect, state: &AppState) {
         is_playing,
         theme.accent,
         glow_color,
-        theme.text_muted,
+        theme.highlight_bg,
     );
     f.render_widget(Paragraph::new(progress_line), gauge_chunk);
 
-    // 4. Controls and Volume
+    // 4. Clean Minimal Controls (no verbose text labels)
     let shuffle_style = if state.playback.shuffle {
         Style::default()
             .fg(theme.accent)
@@ -171,55 +171,29 @@ pub fn render_player_bar(f: &mut Frame, area: Rect, state: &AppState) {
         Style::default().fg(theme.text_muted)
     };
 
-    let viz_label = if state.show_visualizer {
-        "Expanded"
-    } else {
-        "Compact"
+    let repeat_text = match state.playback.repeat {
+        crate::playback::types::RepeatMode::One => "[r]¹",
+        _ => "[r]",
     };
 
-    let controls_line = if area.width < 90 {
-        Line::from(vec![
-            Span::raw("[p]⏮ [Space]▶⏸ [n]⏭  "),
-            Span::styled(
-                format!(
-                    "[s]Shuf:{} ",
-                    if state.playback.shuffle { "On" } else { "Off" }
-                ),
-                shuffle_style,
-            ),
-            Span::styled(
-                format!("[r]Rep:{} ", state.playback.repeat.display_label()),
-                repeat_style,
-            ),
-            Span::styled(
-                format!("[v]Wave:{} ", viz_label),
-                Style::default().fg(theme.secondary),
-            ),
-            Span::raw(format!("[+/-]Vol:{}%", state.playback.volume)),
-        ])
+    let viz_style = if state.show_visualizer {
+        Style::default()
+            .fg(theme.accent)
+            .add_modifier(Modifier::BOLD)
     } else {
-        Line::from(vec![
-            Span::raw("[p] |<<  "),
-            Span::raw("[Space] >/||  "),
-            Span::raw("[n] >>|   "),
-            Span::styled(
-                format!(
-                    "[s] Shuffle: {}   ",
-                    if state.playback.shuffle { "On" } else { "Off" }
-                ),
-                shuffle_style,
-            ),
-            Span::styled(
-                format!("[r] Repeat: {}   ", state.playback.repeat.display_label()),
-                repeat_style,
-            ),
-            Span::styled(
-                format!("[v] Wave Ribbon: {}   ", viz_label),
-                Style::default().fg(theme.secondary),
-            ),
-            Span::raw(format!("[+/-] Vol: {}%", state.playback.volume)),
-        ])
+        Style::default().fg(theme.text_muted)
     };
+
+    let controls_line = Line::from(vec![
+        Span::raw("[p]⏮  [Space]▶⏸  [n]⏭    "),
+        Span::styled("[s]  ", shuffle_style),
+        Span::styled(format!("{}  ", repeat_text), repeat_style),
+        Span::styled("[v]    ", viz_style),
+        Span::styled(
+            format!("[+/-] {}%", state.playback.volume),
+            Style::default().fg(theme.text_muted),
+        ),
+    ]);
 
     f.render_widget(Paragraph::new(controls_line), controls_chunk);
 }

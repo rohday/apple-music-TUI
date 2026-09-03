@@ -58,7 +58,7 @@ pub fn render_braille_ribbon(width: usize, time_secs: f64, is_playing: bool) -> 
     let mut bottom_line = String::with_capacity(width * 4);
 
     let total_subcols = width * 2;
-    let t = time_secs * 3.5;
+    let t = time_secs * 1.0;
 
     for col in 0..width {
         let sub1 = col * 2;

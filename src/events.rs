@@ -318,16 +318,16 @@ pub async fn handle_key_event(
         KeyCode::Char('v') => {
             state.show_visualizer = !state.show_visualizer;
             let status = if state.show_visualizer {
-                "Wave Ribbon: Expanded player bar (Press 'v' or 'Esc' to collapse)"
+                "Visualizer: On"
             } else {
-                "Wave Ribbon: Compact"
+                "Visualizer: Off"
             };
             state.set_status(status);
             return Ok(());
         }
         KeyCode::Esc if state.show_visualizer => {
             state.show_visualizer = false;
-            state.set_status("Wave Ribbon: Compact");
+            state.set_status("Visualizer: Off");
             return Ok(());
         }
         KeyCode::Char('f') => {

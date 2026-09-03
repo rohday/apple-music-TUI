@@ -1,14 +1,26 @@
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
 
-/// Renders a 60 FPS animated traveling glow beam progress bar.
-/// `width`: total character width of the progress bar
-/// `progress_ratio`: 0.0 to 1.0
-/// `anim_time`: continuous high-resolution time in seconds (60 FPS)
-/// `is_playing`: whether track is currently playing
-/// `accent_color`: active theme accent color
-/// `glow_color`: highlight color for the traveling light pulse (usually bright white or text primary)
-/// `bg_color`: color for the unplayed track
+fn extract_rgb(color: Color) -> (u8, u8, u8) {
+    match color {
+        Color::Rgb(r, g, b) => (r, g, b),
+        Color::White => (255, 255, 255),
+        Color::Red => (255, 50, 50),
+        Color::Blue => (50, 100, 255),
+        Color::Green => (50, 255, 50),
+        _ => (200, 200, 200),
+    }
+}
+
+fn blend_rgb(c1: (u8, u8, u8), c2: (u8, u8, u8), factor: f64) -> Color {
+    let f = factor.clamp(0.0, 1.0);
+    let r = (c1.0 as f64 + (c2.0 as f64 - c1.0 as f64) * f).round() as u8;
+    let g = (c1.1 as f64 + (c2.1 as f64 - c1.1 as f64) * f).round() as u8;
+    let b = (c1.2 as f64 + (c2.2 as f64 - c1.2 as f64) * f).round() as u8;
+    Color::Rgb(r, g, b)
+}
+
+/// Renders a thick 60 FPS animated traveling glow beam progress bar with smooth fade.
 pub fn render_shimmer_progress_bar<'a>(
     width: usize,
     progress_ratio: f64,
@@ -16,7 +28,7 @@ pub fn render_shimmer_progress_bar<'a>(
     is_playing: bool,
     accent_color: Color,
     glow_color: Color,
-    bg_color: Color,
+    unplayed_bg: Color,
 ) -> Line<'a> {
     if width == 0 {
         return Line::default();
@@ -28,59 +40,45 @@ pub fn render_shimmer_progress_bar<'a>(
 
     let mut spans = Vec::with_capacity(width);
 
+    let accent_rgb = extract_rgb(accent_color);
+    let glow_rgb = extract_rgb(glow_color);
+
     if filled_len == 0 {
-        // Entirely unplayed
-        spans.push(Span::styled("─".repeat(width), Style::default().fg(bg_color)));
+        // Entirely unplayed thick track
+        spans.push(Span::styled(" ".repeat(width), Style::default().bg(unplayed_bg)));
         return Line::from(spans);
     }
 
-    // Traveling beam calculation:
-    // Speed: complete transit every 2.0 seconds
-    let beam_speed = (filled_len as f64) / 1.8;
+    // Traveling beam calculation (slow, calm 60 FPS transit ~6.5s)
+    let beam_speed = (filled_len as f64) / 6.5;
     let beam_pos = if is_playing {
         (anim_time * beam_speed) % (filled_len.max(1) as f64)
     } else {
-        (filled_len as f64) * 0.5 // Stationary mid-point when paused
+        (filled_len as f64) * 0.5
     };
 
-    let beam_radius = 2.5; // Width of glow pulse
+    let beam_radius = 7.0; // Wide, soft, faded radius
 
     for i in 0..filled_len {
-        let is_tip = i == filled_len.saturating_sub(1);
         let dist = ((i as f64) - beam_pos).abs();
-
-        if is_tip {
-            spans.push(Span::styled(
-                "╸",
-                Style::default()
-                    .fg(accent_color)
-                    .add_modifier(Modifier::BOLD),
-            ));
-        } else if dist < 1.0 {
-            // Beam core: peak glow
-            spans.push(Span::styled(
-                "━",
-                Style::default().fg(glow_color).add_modifier(Modifier::BOLD),
-            ));
-        } else if dist < beam_radius {
-            // Beam shoulder: intermediate bright accent
-            spans.push(Span::styled(
-                "━",
-                Style::default().fg(accent_color).add_modifier(Modifier::BOLD),
-            ));
+        let color = if is_playing && dist < beam_radius {
+            // Smooth, soft cosine fade: calm and never overly bright or opaque
+            let factor = ((std::f64::consts::PI * dist / beam_radius).cos() * 0.5 + 0.5) * 0.40;
+            blend_rgb(accent_rgb, glow_rgb, factor)
         } else {
-            // Normal played bar
-            spans.push(Span::styled(
-                "━",
-                Style::default().fg(accent_color),
-            ));
-        }
+            accent_color
+        };
+
+        spans.push(Span::styled("█", Style::default().fg(color)));
     }
 
-    // Unplayed remainder
+    // Unplayed thick track
     let unfilled_len = width.saturating_sub(filled_len);
     if unfilled_len > 0 {
-        spans.push(Span::styled("─".repeat(unfilled_len), Style::default().fg(bg_color)));
+        spans.push(Span::styled(
+            " ".repeat(unfilled_len),
+            Style::default().bg(unplayed_bg),
+        ));
     }
 
     Line::from(spans)
