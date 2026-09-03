@@ -3,7 +3,7 @@ use apple_tui::api::client::AppleMusicClient;
 use apple_tui::app::state::AppState;
 use apple_tui::auth::login::{fetch_live_developer_token, launch_interactive_login};
 use apple_tui::config::{AuthConfig, Config, DEFAULT_FALLBACK_DEVELOPER_TOKEN};
-use apple_tui::events::handle_key_event;
+use apple_tui::events::{handle_key_event, load_lyrics_for_current_song};
 use apple_tui::playback::engine::PlaybackEngine;
 use apple_tui::playback::types::PlaybackCommand;
 use apple_tui::ui::draw;
@@ -220,6 +220,9 @@ async fn main() -> Result<()> {
             } => {
                 if let Some(status) = status_opt {
                     state.playback = status;
+                    if state.show_lyrics && state.lyrics_song_id != state.playback.current_song.as_ref().map(|s| s.id.clone()) {
+                        load_lyrics_for_current_song(&mut state, &client).await;
+                    }
                 }
             }
             _ = sigterm.recv() => {

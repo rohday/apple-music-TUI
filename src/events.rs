@@ -357,6 +357,21 @@ pub async fn handle_key_event(
             }
             return Ok(());
         }
+        KeyCode::Esc if state.show_lyrics => {
+            state.show_lyrics = false;
+            state.set_status("Lyrics closed");
+            return Ok(());
+        }
+        KeyCode::Char('y') => {
+            state.toggle_lyrics();
+            if state.show_lyrics {
+                state.set_status("Lyrics panel opened");
+                load_lyrics_for_current_song(state, client).await;
+            } else {
+                state.set_status("Lyrics closed");
+            }
+            return Ok(());
+        }
         _ => {}
     }
 
@@ -528,4 +543,30 @@ async fn load_view_data(state: &mut AppState, client: &AppleMusicClient) -> Resu
         _ => {}
     }
     Ok(())
+}
+
+pub async fn load_lyrics_for_current_song(state: &mut AppState, client: &AppleMusicClient) {
+    if let Some(song) = state.playback.current_song.clone() {
+        if state.lyrics_song_id.as_deref() == Some(&song.id) {
+            return;
+        }
+        state.lyrics_loading = true;
+        let dur = Some((song.duration_in_millis / 1000) as u32);
+        if let Ok(lyrics) = crate::api::lyrics::fetch_lyrics(
+            client.http_client(),
+            &song.name,
+            &song.artist_name,
+            dur,
+            client.is_mock(),
+        )
+        .await
+        {
+            state.lyrics = Some(lyrics);
+            state.lyrics_song_id = Some(song.id);
+        }
+        state.lyrics_loading = false;
+    } else {
+        state.lyrics = None;
+        state.lyrics_song_id = None;
+    }
 }

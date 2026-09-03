@@ -58,6 +58,10 @@ impl AppleMusicClient {
         self.mock_mode
     }
 
+    pub fn http_client(&self) -> &Client {
+        &self.client
+    }
+
     fn auth_headers(&self) -> HeaderMap {
         let mut headers = HeaderMap::new();
         let bearer = format!("Bearer {}", self.developer_token);

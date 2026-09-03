@@ -95,6 +95,10 @@ pub struct AppState {
     pub show_visualizer: bool,
     pub filter_query: String,
     pub is_filtering: bool,
+    pub show_lyrics: bool,
+    pub lyrics: Option<crate::api::lyrics::LyricsData>,
+    pub lyrics_loading: bool,
+    pub lyrics_song_id: Option<String>,
 }
 
 impl Default for AppState {
@@ -135,7 +139,15 @@ impl AppState {
             show_visualizer: false,
             filter_query: String::new(),
             is_filtering: false,
+            show_lyrics: false,
+            lyrics: None,
+            lyrics_loading: false,
+            lyrics_song_id: None,
         }
+    }
+
+    pub fn toggle_lyrics(&mut self) {
+        self.show_lyrics = !self.show_lyrics;
     }
 
     pub fn cycle_theme(&mut self) -> crate::ui::theme::ThemePreset {

@@ -151,6 +151,7 @@ pub fn render_modals(f: &mut Frame, area: Rect, state: &AppState) {
                 Line::from("  v                : Toggle Spectrum Visualizer"),
                 Line::from("  f                : In-View live search filter"),
                 Line::from("  R                : Start Radio Station for selected song"),
+                Line::from("  y                : Toggle side-by-side synced lyrics panel"),
                 Line::from("  /                : Open Catalog Search"),
                 Line::from("  c                : Create new playlist (in Playlists view)"),
                 Line::from("  a                : Add selected track to playlist"),

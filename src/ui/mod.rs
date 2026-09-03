@@ -1,3 +1,4 @@
+pub mod lyrics;
 pub mod main_view;
 pub mod modals;
 pub mod player_bar;
@@ -32,13 +33,23 @@ pub fn draw(f: &mut Frame, state: &AppState) {
         .direction(Direction::Horizontal)
         .constraints([
             Constraint::Percentage(22), // Sidebar
-            Constraint::Percentage(78), // Main Table
+            Constraint::Percentage(78), // Main Table + Optional Lyrics
         ])
         .split(main_chunks[1]);
 
     sidebar::render_sidebar(f, content_chunks[0], state);
     if state.show_visualizer {
         visualizer::render_fullscreen_visualizer(f, content_chunks[1], state);
+    } else if state.show_lyrics {
+        let side_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage(58), // Main Table
+                Constraint::Percentage(42), // Side-by-side Lyrics Panel
+            ])
+            .split(content_chunks[1]);
+        main_view::render_main_view(f, side_chunks[0], state);
+        lyrics::render_lyrics_panel(f, side_chunks[1], state);
     } else {
         main_view::render_main_view(f, content_chunks[1], state);
     }
