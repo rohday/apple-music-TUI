@@ -11,6 +11,41 @@ pub async fn handle_key_event(
     client: &AppleMusicClient,
     playback: &PlaybackEngine,
 ) -> Result<()> {
+    // 0. Handle in-view filter input mode
+    if state.is_filtering {
+        match key.code {
+            KeyCode::Esc => {
+                state.clear_filter();
+                state.set_status("Filter cleared");
+                return Ok(());
+            }
+            KeyCode::Enter => {
+                state.is_filtering = false;
+                state.set_status(format!("Filter applied: '{}'", state.filter_query));
+                return Ok(());
+            }
+            KeyCode::Backspace => {
+                state.filter_query.pop();
+                state.selected_index = 0;
+                return Ok(());
+            }
+            KeyCode::Up => {
+                state.move_selection_up();
+                return Ok(());
+            }
+            KeyCode::Down => {
+                state.move_selection_down();
+                return Ok(());
+            }
+            KeyCode::Char(c) => {
+                state.filter_query.push(c);
+                state.selected_index = 0;
+                return Ok(());
+            }
+            _ => return Ok(()),
+        }
+    }
+
     // 1. Handle Active Modals First
     match &mut state.modal {
         ModalState::Search => match key.code {
@@ -288,6 +323,16 @@ pub async fn handle_key_event(
         KeyCode::Esc if state.show_visualizer => {
             state.show_visualizer = false;
             state.set_status("Visualizer: Disabled");
+            return Ok(());
+        }
+        KeyCode::Char('f') => {
+            state.is_filtering = true;
+            state.set_status("Filter: Type query, Enter to apply, Esc to clear");
+            return Ok(());
+        }
+        KeyCode::Esc if !state.filter_query.is_empty() => {
+            state.clear_filter();
+            state.set_status("Filter cleared");
             return Ok(());
         }
         _ => {}

@@ -93,6 +93,8 @@ pub struct AppState {
     pub pending_login: bool,
     pub theme: crate::ui::theme::ThemePreset,
     pub show_visualizer: bool,
+    pub filter_query: String,
+    pub is_filtering: bool,
 }
 
 impl Default for AppState {
@@ -131,6 +133,8 @@ impl AppState {
             pending_login: false,
             theme: crate::ui::theme::ThemePreset::AppleDark,
             show_visualizer: false,
+            filter_query: String::new(),
+            is_filtering: false,
         }
     }
 
@@ -139,7 +143,80 @@ impl AppState {
         self.theme
     }
 
+    pub fn clear_filter(&mut self) {
+        self.filter_query.clear();
+        self.is_filtering = false;
+        self.selected_index = 0;
+    }
+
+    pub fn filtered_songs(&self) -> Vec<Song> {
+        let songs = match self.active_view {
+            ActiveView::LibrarySongs => &self.songs,
+            ActiveView::PlaylistDetail => &self.playlist_tracks,
+            ActiveView::RecentlyPlayed => &self.recent_tracks,
+            ActiveView::Search => &self.search_results.songs,
+            ActiveView::Queue => &self.queue,
+            _ => &self.songs,
+        };
+
+        if self.filter_query.is_empty() {
+            return songs.clone();
+        }
+
+        let q = self.filter_query.to_lowercase();
+        songs
+            .iter()
+            .filter(|s| {
+                s.name.to_lowercase().contains(&q)
+                    || s.artist_name.to_lowercase().contains(&q)
+                    || s.album_name
+                        .as_deref()
+                        .unwrap_or("")
+                        .to_lowercase()
+                        .contains(&q)
+            })
+            .cloned()
+            .collect()
+    }
+
     pub fn current_list_len(&self) -> usize {
+        if !self.filter_query.is_empty() {
+            match self.active_view {
+                ActiveView::LibrarySongs
+                | ActiveView::PlaylistDetail
+                | ActiveView::RecentlyPlayed
+                | ActiveView::Search
+                | ActiveView::Queue => return self.filtered_songs().len(),
+                ActiveView::Playlists => {
+                    let q = self.filter_query.to_lowercase();
+                    return self
+                        .playlists
+                        .iter()
+                        .filter(|p| p.name.to_lowercase().contains(&q))
+                        .count();
+                }
+                ActiveView::LibraryAlbums => {
+                    let q = self.filter_query.to_lowercase();
+                    return self
+                        .albums
+                        .iter()
+                        .filter(|a| {
+                            a.name.to_lowercase().contains(&q)
+                                || a.artist_name.to_lowercase().contains(&q)
+                        })
+                        .count();
+                }
+                ActiveView::LibraryArtists => {
+                    let q = self.filter_query.to_lowercase();
+                    return self
+                        .artists
+                        .iter()
+                        .filter(|a| a.name.to_lowercase().contains(&q))
+                        .count();
+                }
+            }
+        }
+
         match self.active_view {
             ActiveView::Search => self.search_results.songs.len(),
             ActiveView::LibrarySongs => self.songs.len(),
@@ -226,6 +303,9 @@ impl AppState {
 
     pub fn get_selected_song(&self) -> Option<Song> {
         let idx = self.selected_index;
+        if !self.filter_query.is_empty() {
+            return self.filtered_songs().get(idx).cloned();
+        }
         match self.active_view {
             ActiveView::Search => self.search_results.songs.get(idx).cloned(),
             ActiveView::LibrarySongs => self.songs.get(idx).cloned(),

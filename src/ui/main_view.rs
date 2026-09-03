@@ -1,8 +1,8 @@
 use crate::app::state::{ActiveView, AppState, FocusedPanel};
-use ratatui::layout::{Constraint, Rect};
-use ratatui::style::Style;
-use ratatui::text::Span;
-use ratatui::widgets::{Block, Borders, Cell, Row, Table};
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::style::{Modifier, Style};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table};
 use ratatui::Frame;
 
 pub fn calculate_viewport_range(
@@ -13,17 +13,12 @@ pub fn calculate_viewport_range(
     if total_items == 0 || viewport_height == 0 {
         return (0, 0);
     }
-    if total_items <= viewport_height {
-        return (0, total_items);
-    }
-
-    let half = viewport_height / 2;
-    let start = if selected_index < half {
-        0
-    } else if selected_index + (viewport_height - half) >= total_items {
+    let half_window = viewport_height / 2;
+    let start = selected_index.saturating_sub(half_window);
+    let start = if start + viewport_height > total_items {
         total_items.saturating_sub(viewport_height)
     } else {
-        selected_index.saturating_sub(half)
+        start
     };
     let end = (start + viewport_height).min(total_items);
     (start, end)
@@ -32,8 +27,35 @@ pub fn calculate_viewport_range(
 pub fn render_main_view(f: &mut Frame, area: Rect, state: &AppState) {
     let focused = state.focused_panel == FocusedPanel::MainContent;
     let title = state.active_view.display_name();
-    let viewport_height = (area.height.saturating_sub(4) as usize).max(1);
     let theme = state.theme.theme();
+
+    let (table_area, filter_area) = if state.is_filtering {
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(6), Constraint::Length(3)])
+            .split(area);
+        (chunks[0], Some(chunks[1]))
+    } else {
+        (area, None)
+    };
+
+    let viewport_height = (table_area.height.saturating_sub(4) as usize).max(1);
+
+    if let Some(f_area) = filter_area {
+        let filter_block = Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(theme.accent))
+            .title(Span::styled(" Filter View ", theme.title_style()));
+        let filter_line = Line::from(vec![
+            Span::styled(" Query: ", Style::default().fg(theme.text_muted)),
+            Span::styled(
+                format!("{}_", state.filter_query),
+                Style::default().fg(theme.text_primary).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled("  [Enter: Apply | Esc: Clear]", Style::default().fg(theme.text_muted)),
+        ]);
+        f.render_widget(Paragraph::new(filter_line).block(filter_block), f_area);
+    }
 
     match state.active_view {
         ActiveView::LibrarySongs
@@ -41,14 +63,7 @@ pub fn render_main_view(f: &mut Frame, area: Rect, state: &AppState) {
         | ActiveView::RecentlyPlayed
         | ActiveView::Search
         | ActiveView::Queue => {
-            let songs = match state.active_view {
-                ActiveView::LibrarySongs => &state.songs,
-                ActiveView::PlaylistDetail => &state.playlist_tracks,
-                ActiveView::RecentlyPlayed => &state.recent_tracks,
-                ActiveView::Search => &state.search_results.songs,
-                ActiveView::Queue => &state.queue,
-                _ => &state.songs,
-            };
+            let songs = state.filtered_songs();
 
             let (start_idx, end_idx) =
                 calculate_viewport_range(state.selected_index, songs.len(), viewport_height);
@@ -58,16 +73,23 @@ pub fn render_main_view(f: &mut Frame, area: Rect, state: &AppState) {
                 &songs[start_idx..end_idx]
             };
 
+            let filter_badge = if !state.filter_query.is_empty() {
+                format!(" [Filter: \"{}\"]", state.filter_query)
+            } else {
+                String::new()
+            };
+
             let title_text = if songs.len() > viewport_height {
                 format!(
-                    " {} [{}-{}/{}] ",
+                    " {}{} [{}-{}/{}] ",
                     title,
+                    filter_badge,
                     start_idx + 1,
                     end_idx,
                     songs.len()
                 )
             } else {
-                format!(" {} ", title)
+                format!(" {}{} ", title, filter_badge)
             };
 
             let block = Block::default()
@@ -131,7 +153,7 @@ pub fn render_main_view(f: &mut Frame, area: Rect, state: &AppState) {
             ];
 
             let table = Table::new(rows, widths).header(header).block(block);
-            f.render_widget(table, area);
+            f.render_widget(table, table_area);
         }
         ActiveView::Playlists => {
             let (start_idx, end_idx) = calculate_viewport_range(
@@ -204,7 +226,7 @@ pub fn render_main_view(f: &mut Frame, area: Rect, state: &AppState) {
             ];
 
             let table = Table::new(rows, widths).header(header).block(block);
-            f.render_widget(table, area);
+            f.render_widget(table, table_area);
         }
         ActiveView::LibraryAlbums => {
             let (start_idx, end_idx) =
@@ -274,7 +296,7 @@ pub fn render_main_view(f: &mut Frame, area: Rect, state: &AppState) {
             ];
 
             let table = Table::new(rows, widths).header(header).block(block);
-            f.render_widget(table, area);
+            f.render_widget(table, table_area);
         }
         ActiveView::LibraryArtists => {
             let (start_idx, end_idx) = calculate_viewport_range(
@@ -334,7 +356,7 @@ pub fn render_main_view(f: &mut Frame, area: Rect, state: &AppState) {
             let widths = [Constraint::Length(5), Constraint::Percentage(90)];
 
             let table = Table::new(rows, widths).header(header).block(block);
-            f.render_widget(table, area);
+            f.render_widget(table, table_area);
         }
     }
 }
