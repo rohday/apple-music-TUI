@@ -7,6 +7,7 @@ fn test_default_config() {
     assert_eq!(cfg.volume, 80);
     assert_eq!(cfg.storefront, "us");
     assert!(!cfg.mock_mode);
+    assert_eq!(cfg.tick_rate_ms, 50);
 }
 
 #[test]

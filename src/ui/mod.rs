@@ -16,12 +16,13 @@ use ratatui::Frame;
 pub fn draw(f: &mut Frame, state: &AppState) {
     let size = f.area();
 
+    let player_bar_height = if state.show_visualizer { 7 } else { 5 };
     let main_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(1), // Header Status Bar
-            Constraint::Min(10),   // Content Area (Sidebar + Main)
-            Constraint::Length(5), // Bottom Player Bar
+            Constraint::Min(8),    // Content Area (Sidebar + Main)
+            Constraint::Length(player_bar_height), // Bottom Player Bar
         ])
         .split(size);
 
@@ -38,9 +39,7 @@ pub fn draw(f: &mut Frame, state: &AppState) {
         .split(main_chunks[1]);
 
     sidebar::render_sidebar(f, content_chunks[0], state);
-    if state.show_visualizer {
-        visualizer::render_fullscreen_visualizer(f, content_chunks[1], state);
-    } else if state.show_lyrics {
+    if state.show_lyrics {
         let side_chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([

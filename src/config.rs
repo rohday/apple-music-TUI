@@ -34,7 +34,7 @@ impl Default for Config {
             storefront: "us".to_string(),
             browser_path: None,
             mock_mode: false,
-            tick_rate_ms: 250,
+            tick_rate_ms: 50,
             theme: ThemePreset::AppleDark,
         }
     }

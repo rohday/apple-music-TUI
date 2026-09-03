@@ -167,3 +167,61 @@ fn test_ui_draw_scrolled_table_renders_selected_row() {
         "The selected row (index 35) must be visible in the rendered buffer when scrolled!"
     );
 }
+
+#[test]
+fn test_ui_draw_expanded_visualizer_preserves_library() {
+    let backend = TestBackend::new(120, 30);
+    let mut terminal = Terminal::new(backend).unwrap();
+
+    let mut state = AppState::new();
+    let song = Song {
+        id: "s1".to_string(),
+        name: "Blinding Lights".to_string(),
+        artist_name: "The Weeknd".to_string(),
+        album_name: Some("After Hours".to_string()),
+        duration_in_millis: 200040,
+        track_number: Some(9),
+        release_date: None,
+        url: None,
+        catalog_id: None,
+    };
+    state.songs = vec![song.clone()];
+    state.focused_panel = FocusedPanel::MainContent;
+    state.active_view = ActiveView::LibrarySongs;
+    state.show_visualizer = true; // Expanded mode
+    state.playback = PlaybackStatus {
+        state: PlaybackState::Playing,
+        current_time_secs: 15.0,
+        duration_secs: 200.0,
+        current_song: Some(song),
+        volume: 80,
+        shuffle: false,
+        repeat: RepeatMode::Off,
+    };
+
+    terminal
+        .draw(|f| {
+            draw(f, &state);
+        })
+        .unwrap();
+
+    let buffer = terminal.backend().buffer();
+    let mut rendered_text = String::new();
+    for y in 0..buffer.area.height {
+        for x in 0..buffer.area.width {
+            rendered_text.push_str(buffer[(x, y)].symbol());
+        }
+        rendered_text.push('\n');
+    }
+
+    // Both the library song AND the expanded visualizer badge must be rendered simultaneously!
+    assert!(
+        rendered_text.contains("Blinding Lights"),
+        "Library song table must remain visible when visualizer is expanded!"
+    );
+    assert!(
+        rendered_text.contains("Visualizer [v: Compact]"),
+        "Expanded player bar visualizer badge must be rendered!"
+    );
+}
+

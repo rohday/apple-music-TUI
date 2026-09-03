@@ -1,110 +1,121 @@
-use crate::app::state::AppState;
-use ratatui::layout::Rect;
-use ratatui::style::{Modifier, Style};
-use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph};
-use ratatui::Frame;
-
-const UNICODE_BARS: [char; 9] = [' ', ' ', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
-
-pub fn compute_band_heights(time_secs: f64, num_bars: usize, is_playing: bool) -> Vec<f64> {
-    if !is_playing {
-        return vec![0.05; num_bars];
-    }
-
-    (0..num_bars)
-        .map(|i| {
-            let fi = i as f64;
-            // Multi-harmonic oscillating wave
-            let w1 = ((time_secs * 4.5 + fi * 0.9).sin() + 1.0) * 0.35;
-            let w2 = ((time_secs * 7.2 - fi * 1.3).cos() + 1.0) * 0.25;
-            let w3 = ((time_secs * 11.0 + fi * 2.1).sin() + 1.0) * 0.2;
-            (w1 + w2 + w3 + 0.1).clamp(0.0, 1.0)
-        })
-        .collect()
-}
-
-pub fn compute_spectrum_bars(time_secs: f64, num_bars: usize, is_playing: bool) -> String {
-    let heights = compute_band_heights(time_secs, num_bars, is_playing);
-    heights
-        .into_iter()
-        .map(|h| {
-            let idx = (h * 8.0).round() as usize;
-            UNICODE_BARS[idx.min(8)]
-        })
-        .collect()
-}
-
-pub fn render_fullscreen_visualizer(f: &mut Frame, area: Rect, state: &AppState) {
-    let theme = state.theme.theme();
-    let is_playing = state.playback.state == crate::playback::types::PlaybackState::Playing;
-    let time = state.playback.current_time_secs;
-
-    let block = Block::default()
-        .title(Span::styled(
-            " Spectrum Visualizer [v: Close] ",
-            theme.title_style(),
-        ))
-        .borders(Borders::ALL)
-        .border_style(theme.border_style(true));
-
-    let inner = block.inner(area);
-    f.render_widget(block, area);
-
-    if inner.height < 4 || inner.width < 10 {
-        return;
-    }
-
-    let num_bars = (inner.width as usize).saturating_sub(4).min(64);
-    let heights = compute_band_heights(time, num_bars, is_playing);
-
-    let max_h = (inner.height as usize).saturating_sub(2);
-    let mut lines: Vec<Line> = Vec::with_capacity(max_h + 1);
-
-    for row in (0..max_h).rev() {
-        let threshold = (row as f64) / (max_h as f64);
-        let mut spans = Vec::new();
-        spans.push(Span::raw("  "));
-
-        for &h in &heights {
-            if h >= threshold {
-                let color = if (row as f64) > (max_h as f64) * 0.75 {
-                    theme.accent
-                } else if (row as f64) > (max_h as f64) * 0.4 {
-                    theme.secondary
-                } else {
-                    theme.text_primary
-                };
-                spans.push(Span::styled("█", Style::default().fg(color)));
-            } else if h >= threshold - (0.5 / max_h as f64) {
-                spans.push(Span::styled("▄", Style::default().fg(theme.text_muted)));
-            } else {
-                spans.push(Span::raw(" "));
-            }
-        }
-        lines.push(Line::from(spans));
-    }
-
-    let bottom_label = if let Some(song) = &state.playback.current_song {
-        format!(
-            "♫ {} - {} [{}]",
-            song.name,
-            song.artist_name,
-            state.playback.formatted_position()
-        )
-    } else {
-        "No song playing".to_string()
+/// Encodes dot levels (0..=4) into a single Braille character (U+2800..U+28FF).
+/// Level 0 uses baseline dots (dot 7 and dot 8) for a peaceful resting baseline line: ⠤.
+pub fn braille_cell_from_levels(left_level: usize, right_level: usize) -> char {
+    let left_bits = match left_level {
+        1 => 0x40,
+        2 => 0x44,
+        3 => 0x46,
+        4.. => 0x47,
+        _ => 0x40, // baseline dot 7
     };
-    lines.push(Line::from(vec![
-        Span::raw("  "),
-        Span::styled(
-            bottom_label,
-            Style::default()
-                .fg(theme.text_muted)
-                .add_modifier(Modifier::BOLD),
-        ),
-    ]));
+    let right_bits = match right_level {
+        1 => 0x80,
+        2 => 0xA0,
+        3 => 0xB0,
+        4.. => 0xB8,
+        _ => 0x80, // baseline dot 8
+    };
 
-    let paragraph = Paragraph::new(lines);
-    f.render_widget(paragraph, inner);
+    let code = 0x2800 | left_bits | right_bits;
+    std::char::from_u32(code).unwrap_or('⠤')
+}
+
+/// Encodes dot levels (0..=4) for upper rows where 0 means empty space (U+2800: ⠀).
+pub fn braille_cell_upper_from_levels(left_level: usize, right_level: usize) -> char {
+    let left_bits = match left_level {
+        1 => 0x40,
+        2 => 0x44,
+        3 => 0x46,
+        4.. => 0x47,
+        _ => 0x00,
+    };
+    let right_bits = match right_level {
+        1 => 0x80,
+        2 => 0xA0,
+        3 => 0xB0,
+        4.. => 0xB8,
+        _ => 0x00,
+    };
+
+    let code = 0x2800 | left_bits | right_bits;
+    std::char::from_u32(code).unwrap_or('⠀')
+}
+
+/// Generates a 2-line smooth Braille waveform ribbon across `width` terminal characters.
+/// Each character column contains 2 wave sub-columns (left and right).
+pub fn render_braille_ribbon(width: usize, time_secs: f64, is_playing: bool) -> (String, String) {
+    if width == 0 {
+        return (String::new(), String::new());
+    }
+
+    if !is_playing {
+        let top = "⠀".repeat(width);
+        let bottom = "⣀".repeat(width);
+        return (top, bottom);
+    }
+
+    let mut top_line = String::with_capacity(width * 4);
+    let mut bottom_line = String::with_capacity(width * 4);
+
+    let total_subcols = width * 2;
+    let t = time_secs * 3.5;
+
+    for col in 0..width {
+        let sub1 = col * 2;
+        let sub2 = col * 2 + 1;
+
+        let h1 = compute_wave_height(sub1, total_subcols, t);
+        let h2 = compute_wave_height(sub2, total_subcols, t);
+
+        let (top1, bot1) = split_height_to_rows(h1);
+        let (top2, bot2) = split_height_to_rows(h2);
+
+        top_line.push(braille_cell_upper_from_levels(top1, top2));
+        bottom_line.push(braille_cell_from_levels(bot1, bot2));
+    }
+
+    (top_line, bottom_line)
+}
+
+fn split_height_to_rows(h: usize) -> (usize, usize) {
+    if h <= 4 {
+        (0, h)
+    } else {
+        (h - 4, 4)
+    }
+}
+
+fn compute_wave_height(x: usize, total_x: usize, t: f64) -> usize {
+    let norm_x = (x as f64) / (total_x.max(1) as f64);
+
+    // Multi-harmonic traveling wave with amplitude modulation
+    let w1 = (norm_x * 8.0 * std::f64::consts::PI - t).sin();
+    let w2 = (norm_x * 14.0 * std::f64::consts::PI + t * 0.7).sin() * 0.5;
+    let w3 = (norm_x * 4.0 * std::f64::consts::PI - t * 1.5).cos() * 0.4;
+    let envelope = (norm_x * std::f64::consts::PI).sin();
+
+    let combined = (w1 + w2 + w3) * envelope;
+    let scaled = ((combined + 1.2) / 2.4 * 8.0).clamp(0.0, 8.0);
+    scaled.round() as usize
+}
+
+/// Compact single-line braille wave indicator for compact player bar.
+pub fn render_compact_braille_wave(cells: usize, time_secs: f64, is_playing: bool) -> String {
+    if cells == 0 {
+        return String::new();
+    }
+    if !is_playing {
+        return "⣀".repeat(cells);
+    }
+    let mut out = String::with_capacity(cells * 4);
+    let total_subcols = cells * 2;
+    let t = time_secs * 4.0;
+    for col in 0..cells {
+        let sub1 = col * 2;
+        let sub2 = col * 2 + 1;
+        let h1 = compute_wave_height(sub1, total_subcols, t).min(4);
+        let h2 = compute_wave_height(sub2, total_subcols, t).min(4);
+        out.push(braille_cell_from_levels(h1, h2));
+    }
+    out
 }
