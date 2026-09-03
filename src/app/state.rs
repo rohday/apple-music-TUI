@@ -99,6 +99,8 @@ pub struct AppState {
     pub lyrics: Option<crate::api::lyrics::LyricsData>,
     pub lyrics_loading: bool,
     pub lyrics_song_id: Option<String>,
+    pub anim_time: f64,
+    pub last_tick_instant: std::time::Instant,
 }
 
 impl Default for AppState {
@@ -143,6 +145,17 @@ impl AppState {
             lyrics: None,
             lyrics_loading: false,
             lyrics_song_id: None,
+            anim_time: 0.0,
+            last_tick_instant: std::time::Instant::now(),
+        }
+    }
+
+    pub fn tick_animation(&mut self) {
+        let now = std::time::Instant::now();
+        let dt = now.duration_since(self.last_tick_instant).as_secs_f64();
+        self.last_tick_instant = now;
+        if self.playback.state == crate::playback::types::PlaybackState::Playing {
+            self.anim_time += dt;
         }
     }
 

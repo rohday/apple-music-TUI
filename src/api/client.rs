@@ -73,6 +73,14 @@ impl AppleMusicClient {
                 headers.insert("Music-User-Token", val);
             }
         }
+        headers.insert(
+            "Origin",
+            HeaderValue::from_static("https://music.apple.com"),
+        );
+        headers.insert(
+            "Referer",
+            HeaderValue::from_static("https://music.apple.com/"),
+        );
         headers
     }
 

@@ -34,7 +34,7 @@ impl Default for Config {
             storefront: "us".to_string(),
             browser_path: None,
             mock_mode: false,
-            tick_rate_ms: 50,
+            tick_rate_ms: 16,
             theme: ThemePreset::AppleDark,
         }
     }
@@ -107,8 +107,11 @@ impl Config {
     pub fn load_from(path: &Path) -> Result<Self> {
         let content = fs::read_to_string(path)
             .with_context(|| format!("Failed to read config file at {:?}", path))?;
-        let config: Config =
+        let mut config: Config =
             serde_json::from_str(&content).with_context(|| "Failed to parse config JSON")?;
+        if config.tick_rate_ms > 16 {
+            config.tick_rate_ms = 16;
+        }
         Ok(config)
     }
 

@@ -163,7 +163,11 @@ async fn main() -> Result<()> {
 
     let mut event_stream = EventStream::new();
     let status_rx_arc = playback.get_status_receiver();
-    let mut ticker = tokio::time::interval(Duration::from_millis(config.tick_rate_ms));
+    let mut ticker = tokio::time::interval(Duration::from_millis(config.tick_rate_ms.min(16)));
+    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
+    let mut status_poll = tokio::time::interval(Duration::from_millis(250));
+    status_poll.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
     #[cfg(unix)]
     let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
@@ -179,6 +183,9 @@ async fn main() -> Result<()> {
 
         tokio::select! {
             _ = ticker.tick() => {
+                state.tick_animation();
+            }
+            _ = status_poll.tick() => {
                 state.playback = playback.get_current_status().await;
             }
             Some(Ok(event)) = event_stream.next() => {

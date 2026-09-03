@@ -96,7 +96,7 @@ pub fn render_player_bar(f: &mut Frame, area: Rect, state: &AppState) {
     if !is_expanded {
         let inline_wave = crate::ui::visualizer::render_compact_braille_wave(
             8,
-            state.playback.current_time_secs,
+            state.anim_time,
             is_playing,
         );
         info_spans.push(Span::styled(
@@ -137,7 +137,7 @@ pub fn render_player_bar(f: &mut Frame, area: Rect, state: &AppState) {
     if let Some(r_area) = ribbon_chunk {
         let (top_ribbon, bottom_ribbon) = crate::ui::visualizer::render_braille_ribbon(
             r_area.width as usize,
-            state.playback.current_time_secs,
+            state.anim_time,
             is_playing,
         );
         let ribbon_lines = vec![

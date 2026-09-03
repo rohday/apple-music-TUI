@@ -97,6 +97,31 @@ pub fn render_main_view(f: &mut Frame, area: Rect, state: &AppState) {
                 .borders(Borders::ALL)
                 .border_style(theme.border_style(focused));
 
+            if state.active_view == ActiveView::Search && songs.is_empty() {
+                let empty_lines = vec![
+                    Line::from(""),
+                    Line::from(Span::styled(
+                        "🔍 Apple Music Catalog Search",
+                        Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
+                    )),
+                    Line::from(""),
+                    Line::from(Span::styled(
+                        "Press '/' or Enter to search millions of songs, albums, and artists.",
+                        Style::default().fg(theme.text_primary),
+                    )),
+                    Line::from(""),
+                    Line::from(Span::styled(
+                        "Example queries: \"The Weeknd\", \"Daft Punk\", \"Starboy\"",
+                        Style::default().fg(theme.text_muted),
+                    )),
+                ];
+                let paragraph = Paragraph::new(empty_lines)
+                    .block(block)
+                    .alignment(ratatui::layout::Alignment::Center);
+                f.render_widget(paragraph, table_area);
+                return;
+            }
+
             let header = Row::new(vec![
                 Cell::from(" # ").style(Style::default().fg(theme.text_muted)),
                 Cell::from(" Title").style(Style::default().fg(theme.text_muted)),

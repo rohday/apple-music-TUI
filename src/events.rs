@@ -54,14 +54,19 @@ pub async fn handle_key_event(
                 if !query.is_empty() {
                     state.search_query = query.clone();
                     state.set_status(format!("Searching for '{}'...", query));
-                    if let Ok(results) = client.search_catalog(&query, &state.storefront).await {
-                        state.search_results = results;
-                        state.active_view = ActiveView::Search;
-                        state.selected_index = 0;
-                        state.focused_panel = FocusedPanel::MainContent;
-                        state.set_status(format!("Search results for '{}'", query));
-                    } else {
-                        state.set_status("Search failed");
+                    match client.search_catalog(&query, &state.storefront).await {
+                        Ok(results) => {
+                            let count = results.songs.len();
+                            state.search_results = results;
+                            state.active_view = ActiveView::Search;
+                            state.sidebar_index = 0;
+                            state.selected_index = 0;
+                            state.focused_panel = FocusedPanel::MainContent;
+                            state.set_status(format!("Found {} songs for '{}'", count, query));
+                        }
+                        Err(e) => {
+                            state.set_status(format!("Search failed: {e}"));
+                        }
                     }
                 }
                 state.close_modal();
@@ -387,6 +392,10 @@ pub async fn handle_key_event(
                 load_view_data(state, client).await?;
             }
             KeyCode::Right | KeyCode::Char('l') | KeyCode::Enter => {
+                if state.active_view == ActiveView::Search && state.search_results.songs.is_empty() {
+                    state.open_search();
+                    return Ok(());
+                }
                 state.focused_panel = FocusedPanel::MainContent;
                 load_view_data(state, client).await?;
             }
@@ -409,6 +418,10 @@ pub async fn handle_key_event(
                 }
             }
             KeyCode::Enter => match state.active_view {
+                ActiveView::Search if state.search_results.songs.is_empty() => {
+                    state.open_search();
+                    return Ok(());
+                }
                 ActiveView::LibrarySongs
                 | ActiveView::PlaylistDetail
                 | ActiveView::RecentlyPlayed
