@@ -5,6 +5,10 @@ edition = "2021"
 authors = ["Samyak"]
 description = "Fast, lightweight Apple Music Terminal User Interface for Linux"
 license = "MIT"
+repository = "https://github.com/rohday/apple-music-TUI"
+readme = "README.md"
+keywords = ["tui", "apple-music", "music-player", "terminal", "ratatui"]
+categories = ["command-line-utilities", "multimedia"]
 default-run = "appletui"
 
 [lib]

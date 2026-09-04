@@ -6,8 +6,8 @@ the conventions used in this repo.
 ## Development setup
 
 ```bash
-git clone https://github.com/samyak/appleTUI.git
-cd appleTUI
+git clone https://github.com/rohday/apple-music-TUI.git
+cd apple-music-TUI
 cargo build
 cargo test
 appletui --mock   # run without Apple Music credentials

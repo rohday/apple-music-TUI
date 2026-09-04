@@ -6,7 +6,7 @@
 
 Rust · Ratatui · Tokio · MIT
 
-[![CI](https://github.com/samyak/appleTUI/actions/workflows/ci.yml/badge.svg)](https://github.com/samyak/appleTUI/actions/workflows/ci.yml)
+[![CI](https://github.com/rohday/apple-music-TUI/actions/workflows/ci.yml/badge.svg)](https://github.com/rohday/apple-music-TUI/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 </div>
@@ -66,7 +66,7 @@ binary with zero audio dependencies of its own.
 ### 1. Build & Install Globally
 
 ```bash
-git clone https://github.com/samyak/appleTUI.git
+git clone https://github.com/rohday/apple-music-TUI.git
 cd appleTUI
 cargo install --path .
 ```
