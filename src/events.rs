@@ -1,6 +1,6 @@
 use crate::api::client::AppleMusicClient;
 use crate::app::job::Job;
-use crate::app::state::{ActiveView, AppState, FocusedPanel, ModalState};
+use crate::app::state::{ActiveView, AppState, FocusedPanel, ModalState, SidebarItem};
 use crate::playback::engine::PlaybackEngine;
 use crate::playback::types::PlaybackCommand;
 use anyhow::Result;
@@ -273,17 +273,10 @@ pub async fn handle_key_event(
         }
         KeyCode::Char('v') => {
             state.show_visualizer = !state.show_visualizer;
-            let status = if state.show_visualizer {
-                "Visualizer: On"
-            } else {
-                "Visualizer: Off"
-            };
-            state.set_status(status);
             return Ok(());
         }
         KeyCode::Esc if state.show_visualizer => {
             state.show_visualizer = false;
-            state.set_status("Visualizer: Off");
             return Ok(());
         }
         KeyCode::Char('f') => {
@@ -361,13 +354,29 @@ pub async fn handle_key_event(
                 enqueue_view_load(state, state.active_view);
             }
             KeyCode::Right | KeyCode::Char('l') | KeyCode::Enter => {
-                if state.active_view == ActiveView::Search && state.search_results.songs.is_empty()
-                {
-                    state.open_search();
-                    return Ok(());
+                let items = ActiveView::sidebar_items();
+                match items.get(state.sidebar_index) {
+                    Some(SidebarItem::LyricsToggle) => {
+                        state.toggle_lyrics();
+                        if state.show_lyrics {
+                            state.set_status("Lyrics panel opened");
+                            enqueue_lyrics_for_current_song(state);
+                        } else {
+                            state.set_status("Lyrics closed");
+                        }
+                        return Ok(());
+                    }
+                    Some(SidebarItem::View(ActiveView::Search))
+                        if state.search_results.songs.is_empty() =>
+                    {
+                        state.open_search();
+                        return Ok(());
+                    }
+                    _ => {
+                        state.focused_panel = FocusedPanel::MainContent;
+                        enqueue_view_load(state, state.active_view);
+                    }
                 }
-                state.focused_panel = FocusedPanel::MainContent;
-                enqueue_view_load(state, state.active_view);
             }
             _ => {}
         },

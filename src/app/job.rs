@@ -240,7 +240,7 @@ pub fn apply_effect(state: &mut AppState, effect: Effect) {
             let count = results.songs.len();
             state.search_results = results;
             state.active_view = ActiveView::Search;
-            state.sidebar_index = 0;
+            state.sync_sidebar_to_view();
             state.selected_index = 0;
             state.set_status(format!("Found {count} songs"));
         }
@@ -307,6 +307,7 @@ pub fn apply_effect(state: &mut AppState, effect: Effect) {
         Effect::StationLoaded { song_name, tracks } => {
             state.queue = tracks.clone();
             state.active_view = ActiveView::Queue;
+            state.sync_sidebar_to_view();
             state.selected_index = 0;
             state.pending_playback = Some(crate::app::state::PendingPlayback::QueueStart(0));
             state.set_status(format!("Station started for '{song_name}'"));

@@ -216,19 +216,10 @@ pub fn render_player_bar(f: &mut Frame, area: Rect, state: &AppState) {
         _ => "[r]",
     };
 
-    let viz_style = if state.show_visualizer {
-        Style::default()
-            .fg(theme.accent)
-            .add_modifier(Modifier::BOLD)
-    } else {
-        Style::default().fg(theme.text_muted)
-    };
-
     let controls_line = Line::from(vec![
-        Span::raw("[p]⏮  [Space]▶⏸  [n]⏭    "),
+        Span::raw("[p]  [Space]  [n]    "),
         Span::styled("[s]  ", shuffle_style),
         Span::styled(format!("{}  ", repeat_text), repeat_style),
-        Span::styled("[v]    ", viz_style),
         Span::styled(
             format!("[+/-] {}%", state.playback.volume),
             Style::default().fg(theme.text_muted),

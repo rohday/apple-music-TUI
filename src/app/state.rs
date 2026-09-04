@@ -35,6 +35,34 @@ impl ActiveView {
         ]
     }
 
+    /// Sidebar layout: sections with headers; headers are skipped during
+    /// navigation. Index positions are stable and drive `sidebar_index`.
+    pub fn sidebar_items() -> Vec<SidebarItem> {
+        vec![
+            SidebarItem::View(ActiveView::Search),
+            SidebarItem::Header("Library"),
+            SidebarItem::View(ActiveView::LibrarySongs),
+            SidebarItem::View(ActiveView::LibraryAlbums),
+            SidebarItem::View(ActiveView::LibraryArtists),
+            SidebarItem::View(ActiveView::Playlists),
+            SidebarItem::View(ActiveView::RecentlyPlayed),
+            SidebarItem::Header("Playback"),
+            SidebarItem::View(ActiveView::Queue),
+            SidebarItem::LyricsToggle,
+        ]
+    }
+}
+
+/// One entry in the sidebar: a selectable view, the lyrics panel toggle, or
+/// a non-selectable section header.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SidebarItem {
+    View(ActiveView),
+    LyricsToggle,
+    Header(&'static str),
+}
+
+impl ActiveView {
     pub fn display_name(&self) -> &'static str {
         match self {
             ActiveView::Search => "Search",
@@ -139,7 +167,11 @@ impl AppState {
             active_view: ActiveView::LibrarySongs,
             focused_panel: FocusedPanel::MainContent,
             modal: ModalState::None,
-            sidebar_index: 1, // Start at Library Songs
+            // Start on Library Songs
+            sidebar_index: ActiveView::sidebar_items()
+                .iter()
+                .position(|item| matches!(item, SidebarItem::View(ActiveView::LibrarySongs)))
+                .unwrap_or(0),
             selected_index: 0,
             search_query: String::new(),
             search_results: SearchResults::default(),
@@ -352,20 +384,51 @@ impl AppState {
         }
     }
 
+    /// Moves the sidebar selection down, skipping section headers. Lands on
+    /// a view (switching to it) or the lyrics toggle (view unchanged).
     pub fn move_sidebar_down(&mut self) {
-        let len = ActiveView::all_sidebar_views().len();
-        if self.sidebar_index + 1 < len {
-            self.sidebar_index += 1;
-            self.active_view = ActiveView::all_sidebar_views()[self.sidebar_index];
-            self.selected_index = 0;
+        let items = ActiveView::sidebar_items();
+        let mut i = self.sidebar_index;
+        while i + 1 < items.len() {
+            i += 1;
+            if matches!(items[i], SidebarItem::Header(_)) {
+                continue;
+            }
+            self.sidebar_index = i;
+            if let SidebarItem::View(view) = items[i] {
+                self.active_view = view;
+                self.selected_index = 0;
+            }
+            return;
         }
     }
 
+    /// Moves the sidebar selection up, skipping section headers.
     pub fn move_sidebar_up(&mut self) {
-        if self.sidebar_index > 0 {
-            self.sidebar_index -= 1;
-            self.active_view = ActiveView::all_sidebar_views()[self.sidebar_index];
-            self.selected_index = 0;
+        let items = ActiveView::sidebar_items();
+        let mut i = self.sidebar_index;
+        while i > 0 {
+            i -= 1;
+            if matches!(items[i], SidebarItem::Header(_)) {
+                continue;
+            }
+            self.sidebar_index = i;
+            if let SidebarItem::View(view) = items[i] {
+                self.active_view = view;
+                self.selected_index = 0;
+            }
+            return;
+        }
+    }
+
+    /// Aligns `sidebar_index` with `active_view` after programmatic view
+    /// changes (search results, station start, etc.).
+    pub fn sync_sidebar_to_view(&mut self) {
+        if let Some(idx) = ActiveView::sidebar_items()
+            .iter()
+            .position(|item| matches!(item, SidebarItem::View(v) if *v == self.active_view))
+        {
+            self.sidebar_index = idx;
         }
     }
 

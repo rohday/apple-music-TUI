@@ -164,3 +164,41 @@ fn playback_status_defaults_allow_progress() {
     assert_eq!(status.progress_ratio(), 0.0);
     assert_eq!(status.formatted_position(), "0:00 / 0:00");
 }
+
+#[test]
+fn sidebar_navigation_skips_headers_and_syncs() {
+    use apple_tui::app::state::SidebarItem;
+
+    let mut state = AppState::new();
+    assert!(matches!(
+        ActiveView::sidebar_items()[state.sidebar_index],
+        SidebarItem::View(ActiveView::LibrarySongs)
+    )); // starts at Library Songs
+
+    // Landing on a view switches to it
+
+    // Down past Recently Played to Queue, then onto Lyrics toggle
+    for _ in 0..6 {
+        state.move_sidebar_down();
+    }
+    let items = ActiveView::sidebar_items();
+    assert!(matches!(
+        items[state.sidebar_index],
+        SidebarItem::LyricsToggle
+    ));
+    assert_eq!(state.active_view, ActiveView::Queue); // last view landed on
+
+    state.move_sidebar_down(); // clamps at end
+    assert!(matches!(
+        items[state.sidebar_index],
+        SidebarItem::LyricsToggle
+    ));
+
+    // Sync after programmatic view change (station start)
+    state.active_view = ActiveView::Queue;
+    state.sync_sidebar_to_view();
+    assert!(matches!(
+        items[state.sidebar_index],
+        SidebarItem::View(ActiveView::Queue)
+    ));
+}
