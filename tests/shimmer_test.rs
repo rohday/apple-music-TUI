@@ -15,7 +15,11 @@ fn test_render_shimmer_progress_bar_lengths_and_states() {
         Color::White,
         Color::DarkGray,
     );
-    let rendered_text: String = line_playing.spans.iter().map(|s| s.content.as_ref()).collect();
+    let rendered_text: String = line_playing
+        .spans
+        .iter()
+        .map(|s| s.content.as_ref())
+        .collect();
     assert_eq!(rendered_text.chars().count(), width);
 
     // Test empty/zero progress

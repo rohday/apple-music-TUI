@@ -323,16 +323,15 @@ impl AppleMusicClient {
         Ok(())
     }
 
-    pub async fn delete_playlist_track(
-        &self,
-        playlist_id: &str,
-        track_id: &str,
-    ) -> Result<()> {
+    pub async fn delete_playlist_track(&self, playlist_id: &str, track_id: &str) -> Result<()> {
         if self.mock_mode {
             return Ok(());
         }
 
-        let url = format!("{}/me/library/playlists/{}/tracks/{}", BASE_URL, playlist_id, track_id);
+        let url = format!(
+            "{}/me/library/playlists/{}/tracks/{}",
+            BASE_URL, playlist_id, track_id
+        );
         let resp = self
             .client
             .delete(&url)
@@ -427,7 +426,11 @@ impl AppleMusicClient {
         Ok(list.data)
     }
 
-    pub async fn create_station_for_song(&self, song_id: &str, storefront: &str) -> Result<Vec<Song>> {
+    pub async fn create_station_for_song(
+        &self,
+        song_id: &str,
+        storefront: &str,
+    ) -> Result<Vec<Song>> {
         if self.mock_mode {
             let base = mock_library_songs();
             let station: Vec<Song> = base
@@ -444,8 +447,16 @@ impl AppleMusicClient {
             return Ok(station);
         }
 
-        let url = format!("{}/catalog/{}/songs/{}/station", BASE_URL, storefront, song_id);
-        let resp = self.client.get(&url).headers(self.auth_headers()).send().await;
+        let url = format!(
+            "{}/catalog/{}/songs/{}/station",
+            BASE_URL, storefront, song_id
+        );
+        let resp = self
+            .client
+            .get(&url)
+            .headers(self.auth_headers())
+            .send()
+            .await;
 
         if let Ok(resp) = resp {
             if resp.status().is_success() {
@@ -475,6 +486,7 @@ fn mock_search_results(query: &str) -> SearchResults {
                 release_date: Some("2020-03-20".to_string()),
                 url: None,
                 catalog_id: None,
+                artwork_url: None,
             },
             Song {
                 id: "1002".to_string(),
@@ -486,6 +498,7 @@ fn mock_search_results(query: &str) -> SearchResults {
                 release_date: Some("2019-11-29".to_string()),
                 url: None,
                 catalog_id: None,
+                artwork_url: None,
             },
             Song {
                 id: "1003".to_string(),
@@ -497,6 +510,7 @@ fn mock_search_results(query: &str) -> SearchResults {
                 release_date: Some("2020-03-20".to_string()),
                 url: None,
                 catalog_id: None,
+                artwork_url: None,
             },
         ],
         albums: vec![
@@ -549,6 +563,7 @@ fn mock_library_songs() -> Vec<Song> {
             release_date: Some("2011-10-18".to_string()),
             url: None,
             catalog_id: None,
+            artwork_url: None,
         },
         Song {
             id: "s2".to_string(),
@@ -560,6 +575,7 @@ fn mock_library_songs() -> Vec<Song> {
             release_date: Some("2013-04-19".to_string()),
             url: None,
             catalog_id: None,
+            artwork_url: None,
         },
         Song {
             id: "s3".to_string(),
@@ -571,6 +587,7 @@ fn mock_library_songs() -> Vec<Song> {
             release_date: Some("2014-07-01".to_string()),
             url: None,
             catalog_id: None,
+            artwork_url: None,
         },
     ]
 }
@@ -641,6 +658,7 @@ fn mock_playlist_tracks(playlist_id: &str) -> Vec<Song> {
             release_date: Some("2013-02-22".to_string()),
             url: None,
             catalog_id: None,
+            artwork_url: None,
         });
     }
     songs

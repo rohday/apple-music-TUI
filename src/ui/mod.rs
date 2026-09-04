@@ -1,3 +1,4 @@
+pub mod art;
 pub mod lyrics;
 pub mod main_view;
 pub mod modals;
@@ -21,8 +22,8 @@ pub fn draw(f: &mut Frame, state: &AppState) {
     let main_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(1), // Header Status Bar
-            Constraint::Min(8),    // Content Area (Sidebar + Main)
+            Constraint::Length(1),                 // Header Status Bar
+            Constraint::Min(8),                    // Content Area (Sidebar + Main)
             Constraint::Length(player_bar_height), // Bottom Player Bar
         ])
         .split(size);
@@ -69,16 +70,27 @@ fn render_header(f: &mut Frame, area: Rect, state: &AppState) {
             Style::default().fg(theme.text_muted),
         )
     } else {
-        Span::styled(
-            " [offline]",
-            Style::default().fg(Color::Yellow),
-        )
+        Span::styled(" [offline]", Style::default().fg(Color::Yellow))
     };
 
     let status_text = state
         .status_message
         .as_deref()
         .unwrap_or("Press '?' Help | '/' Search | 't' Theme | 'q' Quit");
+
+    let loading_badge = if state.is_loading {
+        const SPINNER: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+        let idx = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.subsec_millis() / 100)
+            .unwrap_or(0);
+        Span::styled(
+            format!("{} ", SPINNER[idx as usize]),
+            Style::default().fg(theme.accent),
+        )
+    } else {
+        Span::raw("")
+    };
 
     let left_header = Line::from(vec![
         Span::styled(
@@ -88,6 +100,7 @@ fn render_header(f: &mut Frame, area: Rect, state: &AppState) {
                 .add_modifier(Modifier::BOLD),
         ),
         auth_badge,
+        loading_badge,
     ]);
 
     let right_header = Line::from(vec![Span::styled(

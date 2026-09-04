@@ -48,7 +48,11 @@ fn test_config_save_and_load() {
     {
         use std::os::unix::fs::PermissionsExt;
         let perms = std::fs::metadata(&auth_path).unwrap().permissions();
-        assert_eq!(perms.mode() & 0o777, 0o600, "auth.json must have 0600 permissions");
+        assert_eq!(
+            perms.mode() & 0o777,
+            0o600,
+            "auth.json must have 0600 permissions"
+        );
     }
 }
 

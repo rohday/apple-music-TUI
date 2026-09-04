@@ -182,7 +182,9 @@ impl PlayerInterface for MprisPlayer {
 
     async fn position(&self) -> fdo::Result<Time> {
         let st = self.status.lock().await;
-        Ok(Time::from_micros((st.current_time_secs * 1_000_000.0) as i64))
+        Ok(Time::from_micros(
+            (st.current_time_secs * 1_000_000.0) as i64,
+        ))
     }
 
     async fn minimum_rate(&self) -> fdo::Result<PlaybackRate> {

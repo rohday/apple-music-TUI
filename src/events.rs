@@ -1,14 +1,18 @@
 use crate::api::client::AppleMusicClient;
+use crate::app::job::Job;
 use crate::app::state::{ActiveView, AppState, FocusedPanel, ModalState};
 use crate::playback::engine::PlaybackEngine;
 use crate::playback::types::PlaybackCommand;
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
+/// Handles a key press by mutating state and enqueuing background jobs.
+/// This function never performs network I/O; jobs are executed by the main
+/// loop (or by `run_pending_jobs` in tests), so the UI thread never blocks.
 pub async fn handle_key_event(
     key: KeyEvent,
     state: &mut AppState,
-    client: &AppleMusicClient,
+    _client: &AppleMusicClient,
     playback: &PlaybackEngine,
 ) -> Result<()> {
     // 0. Handle in-view filter input mode
@@ -35,6 +39,7 @@ pub async fn handle_key_event(
             }
             KeyCode::Down => {
                 state.move_selection_down();
+                maybe_fetch_next_songs_page(state);
                 return Ok(());
             }
             KeyCode::Char(c) => {
@@ -51,25 +56,19 @@ pub async fn handle_key_event(
         ModalState::Search => match key.code {
             KeyCode::Enter => {
                 let query = state.text_input_buffer.trim().to_string();
+                state.close_modal();
                 if !query.is_empty() {
                     state.search_query = query.clone();
+                    state.active_view = ActiveView::Search;
+                    state.sidebar_index = 0;
+                    state.selected_index = 0;
+                    state.focused_panel = FocusedPanel::MainContent;
                     state.set_status(format!("Searching for '{}'...", query));
-                    match client.search_catalog(&query, &state.storefront).await {
-                        Ok(results) => {
-                            let count = results.songs.len();
-                            state.search_results = results;
-                            state.active_view = ActiveView::Search;
-                            state.sidebar_index = 0;
-                            state.selected_index = 0;
-                            state.focused_panel = FocusedPanel::MainContent;
-                            state.set_status(format!("Found {} songs for '{}'", count, query));
-                        }
-                        Err(e) => {
-                            state.set_status(format!("Search failed: {e}"));
-                        }
-                    }
+                    state.enqueue_job(Job::Search {
+                        query,
+                        storefront: state.storefront.clone(),
+                    });
                 }
-                state.close_modal();
                 return Ok(());
             }
             KeyCode::Esc => {
@@ -89,14 +88,11 @@ pub async fn handle_key_event(
         ModalState::CreatePlaylist => match key.code {
             KeyCode::Enter => {
                 let name = state.text_input_buffer.trim().to_string();
+                state.close_modal();
                 if !name.is_empty() {
                     state.set_status(format!("Creating playlist '{}'...", name));
-                    if let Ok(pl) = client.create_playlist(&name, None).await {
-                        state.playlists.push(pl);
-                        state.set_status(format!("Created playlist '{}'", name));
-                    }
+                    state.enqueue_job(Job::CreatePlaylist(name));
                 }
-                state.close_modal();
                 return Ok(());
             }
             KeyCode::Esc => {
@@ -113,39 +109,43 @@ pub async fn handle_key_event(
             }
             _ => return Ok(()),
         },
-        ModalState::AddToPlaylist { song } => match key.code {
-            KeyCode::Up | KeyCode::Char('k') => {
-                if state.add_to_playlist_index > 0 {
-                    state.add_to_playlist_index -= 1;
+        ModalState::AddToPlaylist { song } => {
+            let song = song.clone();
+            match key.code {
+                KeyCode::Up | KeyCode::Char('k') => {
+                    if state.add_to_playlist_index > 0 {
+                        state.add_to_playlist_index -= 1;
+                    }
+                    return Ok(());
                 }
-                return Ok(());
-            }
-            KeyCode::Down | KeyCode::Char('j') => {
-                if !state.playlists.is_empty()
-                    && state.add_to_playlist_index + 1 < state.playlists.len()
-                {
-                    state.add_to_playlist_index += 1;
+                KeyCode::Down | KeyCode::Char('j') => {
+                    if !state.playlists.is_empty()
+                        && state.add_to_playlist_index + 1 < state.playlists.len()
+                    {
+                        state.add_to_playlist_index += 1;
+                    }
+                    return Ok(());
                 }
-                return Ok(());
-            }
-            KeyCode::Enter => {
-                if let Some(pl) = state.playlists.get(state.add_to_playlist_index) {
-                    let pl_id = pl.id.clone();
-                    let song_id = song.id.clone();
-                    let song_name = song.name.clone();
-                    let pl_name = pl.name.clone();
-                    let _ = client.add_tracks_to_playlist(&pl_id, &[&song_id]).await;
-                    state.set_status(format!("Added '{}' to '{}'", song_name, pl_name));
+                KeyCode::Enter => {
+                    if let Some(pl) = state.playlists.get(state.add_to_playlist_index) {
+                        let job = Job::AddToPlaylist {
+                            playlist_id: pl.id.clone(),
+                            song_id: song.id.clone(),
+                            song_name: song.name.clone(),
+                            playlist_name: pl.name.clone(),
+                        };
+                        state.enqueue_job(job);
+                    }
+                    state.close_modal();
+                    return Ok(());
                 }
-                state.close_modal();
-                return Ok(());
+                KeyCode::Esc => {
+                    state.close_modal();
+                    return Ok(());
+                }
+                _ => return Ok(()),
             }
-            KeyCode::Esc => {
-                state.close_modal();
-                return Ok(());
-            }
-            _ => return Ok(()),
-        },
+        }
         ModalState::AuthPrompt => {
             if key.code == KeyCode::Char('l') || key.code == KeyCode::Char('L') {
                 state.pending_login = true;
@@ -200,24 +200,12 @@ pub async fn handle_key_event(
         }
         // Playback hotkeys
         KeyCode::Char(' ') => {
-            if state.playback.current_song.is_none() || state.playback.state == crate::playback::types::PlaybackState::Stopped {
-                if let Some(song) = state.get_selected_song() {
-                    let list = match state.active_view {
-                        ActiveView::LibrarySongs => state.songs.clone(),
-                        ActiveView::PlaylistDetail => state.playlist_tracks.clone(),
-                        ActiveView::RecentlyPlayed => state.recent_tracks.clone(),
-                        ActiveView::Search => state.search_results.songs.clone(),
-                        ActiveView::Queue => state.queue.clone(),
-                        _ => vec![song.clone()],
-                    };
-                    playback
-                        .send_command(PlaybackCommand::SetQueueAndPlay(
-                            list,
-                            state.selected_index,
-                        ))
-                        .await?;
-                    return Ok(());
-                }
+            let needs_queue_start = (state.playback.current_song.is_none()
+                || state.playback.state == crate::playback::types::PlaybackState::Stopped)
+                && state.get_selected_song().is_some();
+            if needs_queue_start {
+                start_playback_from_selection(state, playback).await?;
+                return Ok(());
             }
             playback
                 .send_command(PlaybackCommand::TogglePlayPause)
@@ -261,40 +249,8 @@ pub async fn handle_key_event(
             return Ok(());
         }
         KeyCode::F(5) => {
-            state.set_status("Refreshing data from Apple Music...");
-            match state.active_view {
-                ActiveView::LibrarySongs => {
-                    if let Ok(songs) = client.get_library_songs(100, 0).await {
-                        state.songs = songs;
-                        state.set_status("Refreshed Library Songs");
-                    }
-                }
-                ActiveView::LibraryAlbums => {
-                    if let Ok(albums) = client.get_library_albums(100, 0).await {
-                        state.albums = albums;
-                        state.set_status("Refreshed Albums");
-                    }
-                }
-                ActiveView::LibraryArtists => {
-                    if let Ok(artists) = client.get_library_artists(100, 0).await {
-                        state.artists = artists;
-                        state.set_status("Refreshed Artists");
-                    }
-                }
-                ActiveView::Playlists => {
-                    if let Ok(playlists) = client.get_library_playlists().await {
-                        state.playlists = playlists;
-                        state.set_status("Refreshed Playlists");
-                    }
-                }
-                ActiveView::RecentlyPlayed => {
-                    if let Ok(recent) = client.get_recent_tracks().await {
-                        state.recent_tracks = recent;
-                        state.set_status("Refreshed Recently Played");
-                    }
-                }
-                _ => {}
-            }
+            state.cache.invalidate_all();
+            refresh_view(state);
             return Ok(());
         }
         KeyCode::Char('s') => {
@@ -343,20 +299,11 @@ pub async fn handle_key_event(
         KeyCode::Char('R') => {
             if let Some(song) = state.get_selected_song() {
                 state.set_status(format!("Creating Station for '{}'...", song.name));
-                match client.create_station_for_song(&song.id, &state.storefront).await {
-                    Ok(station_tracks) if !station_tracks.is_empty() => {
-                        state.queue = station_tracks.clone();
-                        state.active_view = ActiveView::Queue;
-                        state.selected_index = 0;
-                        playback
-                            .send_command(PlaybackCommand::SetQueueAndPlay(station_tracks, 0))
-                            .await?;
-                        state.set_status(format!("📻 Playing Station for '{}'", song.name));
-                    }
-                    _ => {
-                        state.set_status("Failed to create station");
-                    }
-                }
+                state.enqueue_job(Job::Station {
+                    song_id: song.id.clone(),
+                    song_name: song.name.clone(),
+                    storefront: state.storefront.clone(),
+                });
             } else {
                 state.set_status("Select a song to start a station");
             }
@@ -371,9 +318,31 @@ pub async fn handle_key_event(
             state.toggle_lyrics();
             if state.show_lyrics {
                 state.set_status("Lyrics panel opened");
-                load_lyrics_for_current_song(state, client).await;
+                enqueue_lyrics_for_current_song(state);
             } else {
                 state.set_status("Lyrics closed");
+            }
+            return Ok(());
+        }
+        KeyCode::Char('o') => {
+            if state.playback.current_song.is_some() {
+                state.show_now_playing = !state.show_now_playing;
+            } else {
+                state.set_status("Nothing playing");
+            }
+            return Ok(());
+        }
+        KeyCode::Esc if state.show_now_playing => {
+            state.show_now_playing = false;
+            return Ok(());
+        }
+        KeyCode::Char('A') => {
+            if let Some(song) = state.get_selected_song() {
+                state.queue.push(song.clone());
+                playback
+                    .send_command(PlaybackCommand::Enqueue(vec![song.clone()]))
+                    .await?;
+                state.set_status(format!("Added '{}' to queue", song.name));
             }
             return Ok(());
         }
@@ -385,19 +354,20 @@ pub async fn handle_key_event(
         FocusedPanel::Sidebar => match key.code {
             KeyCode::Up | KeyCode::Char('k') => {
                 state.move_sidebar_up();
-                load_view_data(state, client).await?;
+                enqueue_view_load(state, state.active_view);
             }
             KeyCode::Down | KeyCode::Char('j') => {
                 state.move_sidebar_down();
-                load_view_data(state, client).await?;
+                enqueue_view_load(state, state.active_view);
             }
             KeyCode::Right | KeyCode::Char('l') | KeyCode::Enter => {
-                if state.active_view == ActiveView::Search && state.search_results.songs.is_empty() {
+                if state.active_view == ActiveView::Search && state.search_results.songs.is_empty()
+                {
                     state.open_search();
                     return Ok(());
                 }
                 state.focused_panel = FocusedPanel::MainContent;
-                load_view_data(state, client).await?;
+                enqueue_view_load(state, state.active_view);
             }
             _ => {}
         },
@@ -407,10 +377,13 @@ pub async fn handle_key_event(
             }
             KeyCode::Down | KeyCode::Char('j') => {
                 state.move_selection_down();
+                maybe_fetch_next_songs_page(state);
             }
             KeyCode::Left | KeyCode::Char('h') | KeyCode::Esc => {
                 if state.active_view == ActiveView::PlaylistDetail {
-                    let prev_view = ActiveView::all_sidebar_views()[state.sidebar_index.min(ActiveView::all_sidebar_views().len() - 1)];
+                    let prev_view = ActiveView::all_sidebar_views()[state
+                        .sidebar_index
+                        .min(ActiveView::all_sidebar_views().len() - 1)];
                     state.active_view = prev_view;
                     state.active_playlist = None;
                 } else {
@@ -427,83 +400,89 @@ pub async fn handle_key_event(
                 | ActiveView::RecentlyPlayed
                 | ActiveView::Search
                 | ActiveView::Queue => {
-                    if let Some(song) = state.get_selected_song() {
-                        let list = match state.active_view {
-                            ActiveView::LibrarySongs => state.songs.clone(),
-                            ActiveView::PlaylistDetail => state.playlist_tracks.clone(),
-                            ActiveView::RecentlyPlayed => state.recent_tracks.clone(),
-                            ActiveView::Search => state.search_results.songs.clone(),
-                            ActiveView::Queue => state.queue.clone(),
-                            _ => vec![song.clone()],
-                        };
-                        playback
-                            .send_command(PlaybackCommand::SetQueueAndPlay(
-                                list,
-                                state.selected_index,
-                            ))
-                            .await?;
-                    }
+                    start_playback_from_selection(state, playback).await?;
                 }
                 ActiveView::Playlists => {
                     if let Some(pl) = state.playlists.get(state.selected_index).cloned() {
-                        state.active_playlist = Some(pl.clone());
                         state.set_status(format!("Loading playlist '{}'...", pl.name));
-                        if let Ok(tracks) = client.get_playlist_tracks(&pl.id).await {
-                            state.playlist_tracks = tracks;
-                            state.active_view = ActiveView::PlaylistDetail;
-                            state.selected_index = 0;
-                        }
+                        let pl_id = pl.id.clone();
+                        open_detail_view(state, pl);
+                        state.enqueue_job(Job::PlaylistTracks { playlist_id: pl_id });
                     }
                 }
                 ActiveView::LibraryAlbums => {
                     if let Some(alb) = state.albums.get(state.selected_index).cloned() {
                         state.set_status(format!("Loading album '{}'...", alb.name));
-                        if let Ok(tracks) = client.get_album_tracks(&alb.id).await {
-                            state.playlist_tracks = tracks;
-                            state.active_playlist = Some(crate::api::models::Playlist {
-                                id: alb.id.clone(),
-                                name: alb.name.clone(),
-                                description: Some(alb.artist_name.clone()),
-                                is_public: false,
-                                track_count: alb.track_count,
-                            });
-                            state.active_view = ActiveView::PlaylistDetail;
-                            state.selected_index = 0;
-                        }
+                        let pl = crate::api::models::Playlist {
+                            id: alb.id.clone(),
+                            name: alb.name.clone(),
+                            description: Some(alb.artist_name.clone()),
+                            is_public: false,
+                            track_count: alb.track_count,
+                        };
+                        open_detail_view(state, pl);
+                        state.enqueue_job(Job::AlbumTracks { album_id: alb.id });
                     }
                 }
                 ActiveView::LibraryArtists => {
                     if let Some(art) = state.artists.get(state.selected_index).cloned() {
                         state.set_status(format!("Loading artist '{}'...", art.name));
-                        if let Ok(tracks) = client.get_artist_tracks(&art.id).await {
-                            let track_count = Some(tracks.len() as u32);
-                            state.playlist_tracks = tracks;
-                            state.active_playlist = Some(crate::api::models::Playlist {
-                                id: art.id.clone(),
-                                name: art.name.clone(),
-                                description: Some("Artist Tracks".to_string()),
-                                is_public: false,
-                                track_count,
-                            });
-                            state.active_view = ActiveView::PlaylistDetail;
-                            state.selected_index = 0;
-                        }
+                        let pl = crate::api::models::Playlist {
+                            id: art.id.clone(),
+                            name: art.name.clone(),
+                            description: Some("Artist Tracks".to_string()),
+                            is_public: false,
+                            track_count: None,
+                        };
+                        open_detail_view(state, pl);
+                        state.enqueue_job(Job::ArtistTracks { artist_id: art.id });
                     }
                 }
             },
-            KeyCode::Char('d') | KeyCode::Delete if state.active_view == ActiveView::PlaylistDetail => {
-                if let Some(track) = state.playlist_tracks.get(state.selected_index).cloned() {
-                    if let Some(pl_id) = state.active_playlist.as_ref().map(|p| p.id.clone()) {
-                        state.set_status(format!("Removing '{}'...", track.name));
-                        if let Err(e) = client.delete_playlist_track(&pl_id, &track.id).await {
-                            state.set_status(format!("Failed to delete track: {e}"));
-                        } else {
-                            state.playlist_tracks.remove(state.selected_index);
-                            if state.selected_index >= state.playlist_tracks.len() && !state.playlist_tracks.is_empty() {
-                                state.selected_index = state.playlist_tracks.len() - 1;
-                            }
-                            state.set_status(format!("Removed '{}' from playlist", track.name));
+            KeyCode::Char('d') | KeyCode::Delete => match state.active_view {
+                ActiveView::PlaylistDetail => {
+                    if let Some(track) = state.playlist_tracks.get(state.selected_index).cloned() {
+                        if let Some(pl_id) = state.active_playlist.as_ref().map(|p| p.id.clone()) {
+                            state.set_status(format!("Removing '{}'...", track.name));
+                            state.enqueue_job(Job::RemovePlaylistTrack {
+                                playlist_id: pl_id,
+                                track_id: track.id.clone(),
+                                track_name: track.name.clone(),
+                                index: state.selected_index,
+                            });
                         }
+                    }
+                }
+                ActiveView::Queue => {
+                    let idx = state.selected_index;
+                    if let Some(song) = state.remove_from_queue(idx) {
+                        playback
+                            .send_command(PlaybackCommand::RemoveFromQueue(idx))
+                            .await?;
+                        state.set_status(format!("Removed '{}' from queue", song.name));
+                    }
+                }
+                _ => {}
+            },
+            KeyCode::Char('<') => {
+                if state.active_view == ActiveView::Queue && state.selected_index > 0 {
+                    let (idx, new_idx) = (state.selected_index, state.selected_index - 1);
+                    if state.move_queue_item(idx, true) {
+                        playback
+                            .send_command(PlaybackCommand::MoveQueueItem(idx, new_idx))
+                            .await?;
+                        state.set_status("Moved up in queue");
+                    }
+                }
+            }
+            KeyCode::Char('>') => {
+                if state.active_view == ActiveView::Queue {
+                    let (idx, new_idx) = (state.selected_index, state.selected_index + 1);
+                    if state.move_queue_item(idx, false) {
+                        playback
+                            .send_command(PlaybackCommand::MoveQueueItem(idx, new_idx))
+                            .await?;
+                        state.set_status("Moved down in queue");
                     }
                 }
             }
@@ -522,64 +501,159 @@ pub async fn handle_key_event(
     Ok(())
 }
 
-async fn load_view_data(state: &mut AppState, client: &AppleMusicClient) -> Result<()> {
-    if !state.is_authenticated && !client.is_mock() {
+/// Switches to the detail (PlaylistDetail) view optimistically; tracks arrive
+/// later via an effect matched on the active playlist id.
+fn open_detail_view(state: &mut AppState, pl: crate::api::models::Playlist) {
+    state.active_playlist = Some(pl);
+    state.playlist_tracks = Vec::new();
+    state.active_view = ActiveView::PlaylistDetail;
+    state.selected_index = 0;
+}
+
+/// Starts playback of the current view's list at the selected index.
+async fn start_playback_from_selection(
+    state: &mut AppState,
+    playback: &PlaybackEngine,
+) -> Result<()> {
+    if state.get_selected_song().is_none() {
         return Ok(());
     }
+    let list = match state.active_view {
+        ActiveView::LibrarySongs => state.songs.clone(),
+        ActiveView::PlaylistDetail => state.playlist_tracks.clone(),
+        ActiveView::RecentlyPlayed => state.recent_tracks.clone(),
+        ActiveView::Search => state.search_results.songs.clone(),
+        ActiveView::Queue => state.queue.clone(),
+        _ => Vec::new(),
+    };
+    let index = state.selected_index.min(list.len().saturating_sub(1));
+    playback
+        .send_command(PlaybackCommand::SetQueueAndPlay(list, index))
+        .await?;
+    Ok(())
+}
 
-    match state.active_view {
+/// Enqueues the next page of library songs when the selection approaches the
+/// end of the currently loaded list.
+fn maybe_fetch_next_songs_page(state: &mut AppState) {
+    if state.should_fetch_next_songs_page() {
+        state.songs_loading_more = true;
+        state.enqueue_job(Job::NextSongsPage {
+            limit: 100,
+            offset: state.songs_offset,
+        });
+    }
+}
+
+/// Requests a view's data: served instantly from cache when fresh, otherwise
+/// enqueued as a background job.
+fn enqueue_view_load(state: &mut AppState, view: ActiveView) {
+    if !state.is_authenticated {
+        return;
+    }
+    match view {
         ActiveView::LibrarySongs if state.songs.is_empty() => {
-            if let Ok(songs) = client.get_library_songs(100, 0).await {
-                state.songs = songs;
+            if let Some(cached) = state.cache.get_songs() {
+                state.songs = cached.to_vec();
+                state.songs_offset = state.songs.len();
+                state.songs_has_more = state.songs.len() >= 100;
+            } else {
+                state.enqueue_job(Job::LoadView(view));
             }
         }
         ActiveView::LibraryAlbums if state.albums.is_empty() => {
-            if let Ok(albums) = client.get_library_albums(100, 0).await {
-                state.albums = albums;
+            if let Some(cached) = state.cache.get_albums() {
+                state.albums = cached.to_vec();
+            } else {
+                state.enqueue_job(Job::LoadView(view));
             }
         }
         ActiveView::LibraryArtists if state.artists.is_empty() => {
-            if let Ok(artists) = client.get_library_artists(100, 0).await {
-                state.artists = artists;
+            if let Some(cached) = state.cache.get_artists() {
+                state.artists = cached.to_vec();
+            } else {
+                state.enqueue_job(Job::LoadView(view));
             }
         }
         ActiveView::Playlists if state.playlists.is_empty() => {
-            if let Ok(playlists) = client.get_library_playlists().await {
-                state.playlists = playlists;
+            if let Some(cached) = state.cache.get_playlists() {
+                state.playlists = cached.to_vec();
+            } else {
+                state.enqueue_job(Job::LoadView(view));
             }
         }
         ActiveView::RecentlyPlayed if state.recent_tracks.is_empty() => {
-            if let Ok(recent) = client.get_recent_tracks().await {
-                state.recent_tracks = recent;
+            if let Some(cached) = state.cache.get_recent() {
+                state.recent_tracks = cached.to_vec();
+            } else {
+                state.enqueue_job(Job::LoadView(view));
             }
         }
         _ => {}
     }
-    Ok(())
 }
 
-pub async fn load_lyrics_for_current_song(state: &mut AppState, client: &AppleMusicClient) {
+/// F5 handler: re-fetches the active view bypassing the cache.
+fn refresh_view(state: &mut AppState) {
+    let view = state.active_view;
+    state.set_status("Refreshing data from Apple Music...");
+    match view {
+        ActiveView::LibrarySongs => {
+            state.songs.clear();
+            state.songs_offset = 0;
+            state.songs_has_more = false;
+            state.enqueue_job(Job::LoadView(view));
+        }
+        ActiveView::LibraryAlbums => {
+            state.albums.clear();
+            state.enqueue_job(Job::LoadView(view));
+        }
+        ActiveView::LibraryArtists => {
+            state.artists.clear();
+            state.enqueue_job(Job::LoadView(view));
+        }
+        ActiveView::Playlists => {
+            state.playlists.clear();
+            state.enqueue_job(Job::LoadView(view));
+        }
+        ActiveView::RecentlyPlayed => {
+            state.recent_tracks.clear();
+            state.enqueue_job(Job::LoadView(view));
+        }
+        _ => {
+            state.set_status("Nothing to refresh in this view");
+        }
+    }
+}
+
+/// Requests lyrics for the currently playing song, unless already loaded or
+/// loading. Replaces the old blocking `load_lyrics_for_current_song`.
+pub fn enqueue_lyrics_for_current_song(state: &mut AppState) {
     if let Some(song) = state.playback.current_song.clone() {
-        if state.lyrics_song_id.as_deref() == Some(&song.id) {
+        if state.lyrics_song_id.as_deref() == Some(&song.id) || state.lyrics_loading {
             return;
         }
         state.lyrics_loading = true;
-        let dur = Some((song.duration_in_millis / 1000) as u32);
-        if let Ok(lyrics) = crate::api::lyrics::fetch_lyrics(
-            client.http_client(),
-            &song.name,
-            &song.artist_name,
-            dur,
-            client.is_mock(),
-        )
-        .await
-        {
-            state.lyrics = Some(lyrics);
-            state.lyrics_song_id = Some(song.id);
-        }
-        state.lyrics_loading = false;
+        state.lyrics = None;
+        state.enqueue_job(Job::Lyrics(song));
     } else {
         state.lyrics = None;
         state.lyrics_song_id = None;
+    }
+}
+
+/// Requests cover art for the currently playing song once per session.
+pub fn enqueue_artwork_for_current_song(state: &mut AppState) {
+    if let Some(song) = state.playback.current_song.clone() {
+        if state.artwork.contains_key(&song.id) || state.artwork_loading.contains(&song.id) {
+            return;
+        }
+        if let Some(url) = song.resolved_artwork_url() {
+            state.artwork_loading.insert(song.id.clone());
+            state.enqueue_job(Job::FetchArtwork {
+                song_id: song.id,
+                url,
+            });
+        }
     }
 }

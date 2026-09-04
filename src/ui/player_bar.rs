@@ -34,7 +34,44 @@ pub fn render_player_bar(f: &mut Frame, area: Rect, state: &AppState) {
         return;
     }
 
-    let is_expanded = state.show_visualizer && inner.height >= 5;
+    // Cover art column: shown whenever art is loaded (or loading) for the
+    // current track. Decoding/resizing happens per frame from the cached
+    // RgbImage, which is cheap for 300x300 covers.
+    let art_width = state
+        .playback
+        .current_song
+        .as_ref()
+        .and_then(|song| state.artwork.get(&song.id))
+        .and_then(|img| {
+            crate::ui::art::to_half_block_cells_from_image(img, 10, inner.height as usize)
+        })
+        .map(|cells| cells.first().map(|r| r.len()).unwrap_or(0))
+        .unwrap_or(0);
+
+    let rest_area = if art_width > 0 {
+        let chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Length(art_width as u16 + 1),
+                Constraint::Min(10),
+            ])
+            .split(inner);
+        if let Some(song) = &state.playback.current_song {
+            if let Some(img) = state.artwork.get(&song.id) {
+                if let Some(cells) =
+                    crate::ui::art::to_half_block_cells_from_image(img, 10, inner.height as usize)
+                {
+                    let lines = crate::ui::art::art_lines(&cells);
+                    f.render_widget(Paragraph::new(lines), chunks[0]);
+                }
+            }
+        }
+        chunks[1]
+    } else {
+        inner
+    };
+
+    let is_expanded = state.show_visualizer && rest_area.height >= 5;
 
     let (track_chunk, ribbon_chunk, gauge_chunk, controls_chunk) = if is_expanded {
         let chunks = Layout::default()
@@ -45,7 +82,7 @@ pub fn render_player_bar(f: &mut Frame, area: Rect, state: &AppState) {
                 Constraint::Length(1), // Progress Bar
                 Constraint::Length(1), // Controls
             ])
-            .split(inner);
+            .split(rest_area);
         (chunks[0], Some(chunks[1]), chunks[2], chunks[3])
     } else {
         let chunks = Layout::default()
@@ -55,7 +92,7 @@ pub fn render_player_bar(f: &mut Frame, area: Rect, state: &AppState) {
                 Constraint::Length(1), // Progress Bar
                 Constraint::Length(1), // Controls
             ])
-            .split(inner);
+            .split(rest_area);
         (chunks[0], None, chunks[1], chunks[2])
     };
 
@@ -131,7 +168,10 @@ pub fn render_player_bar(f: &mut Frame, area: Rect, state: &AppState) {
         );
         let ribbon_lines = vec![
             Line::from(Span::styled(top_ribbon, Style::default().fg(theme.accent))),
-            Line::from(Span::styled(bottom_ribbon, Style::default().fg(theme.accent))),
+            Line::from(Span::styled(
+                bottom_ribbon,
+                Style::default().fg(theme.accent),
+            )),
         ];
         f.render_widget(Paragraph::new(ribbon_lines), r_area);
     }

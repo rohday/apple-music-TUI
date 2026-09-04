@@ -18,6 +18,7 @@ fn test_state_navigation_and_clamping() {
             release_date: None,
             url: None,
             catalog_id: None,
+            artwork_url: None,
         },
         Song {
             id: "2".to_string(),
@@ -29,6 +30,7 @@ fn test_state_navigation_and_clamping() {
             release_date: None,
             url: None,
             catalog_id: None,
+            artwork_url: None,
         },
     ];
 

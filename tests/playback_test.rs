@@ -41,6 +41,7 @@ async fn test_playback_engine_mock_commands() {
         release_date: None,
         url: None,
         catalog_id: None,
+        artwork_url: None,
     };
 
     engine
@@ -85,20 +86,35 @@ async fn test_playback_engine_stop_and_subsequent_play() {
         release_date: None,
         url: None,
         catalog_id: None,
+        artwork_url: None,
     };
 
-    engine.send_command(PlaybackCommand::PlaySong(song.clone())).await.unwrap();
+    engine
+        .send_command(PlaybackCommand::PlaySong(song.clone()))
+        .await
+        .unwrap();
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-    assert_eq!(engine.get_current_status().await.state, PlaybackState::Playing);
+    assert_eq!(
+        engine.get_current_status().await.state,
+        PlaybackState::Playing
+    );
 
     engine.send_command(PlaybackCommand::Stop).await.unwrap();
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-    assert_eq!(engine.get_current_status().await.state, PlaybackState::Stopped);
+    assert_eq!(
+        engine.get_current_status().await.state,
+        PlaybackState::Stopped
+    );
 
     // Engine must NOT be permanently killed by Stop; it must accept subsequent play commands!
     let res = engine.send_command(PlaybackCommand::PlaySong(song)).await;
-    assert!(res.is_ok(), "Engine should still accept commands after Stop");
+    assert!(
+        res.is_ok(),
+        "Engine should still accept commands after Stop"
+    );
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-    assert_eq!(engine.get_current_status().await.state, PlaybackState::Playing);
+    assert_eq!(
+        engine.get_current_status().await.state,
+        PlaybackState::Playing
+    );
 }
-

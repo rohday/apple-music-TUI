@@ -82,8 +82,14 @@ impl PlaybackEngine {
         let cur_status_clone = current_status.clone();
         let browser_pid_clone = browser_pid.clone();
         tokio::spawn(async move {
-            if let Err(e) =
-                run_browser_playback_loop(browser_path, cmd_rx, status_tx, cur_status_clone, browser_pid_clone).await
+            if let Err(e) = run_browser_playback_loop(
+                browser_path,
+                cmd_rx,
+                status_tx,
+                cur_status_clone,
+                browser_pid_clone,
+            )
+            .await
             {
                 error!("Browser playback loop exited with error: {:?}", e);
             }
@@ -254,6 +260,32 @@ async fn run_mock_playback_loop(
                         status.current_song = None;
                         let _ = status_tx.send(status.clone()).await;
                         *status_store.lock().await = status.clone();
+                    }
+                    PlaybackCommand::Enqueue(songs) => {
+                        queue.extend(songs);
+                    }
+                    PlaybackCommand::RemoveFromQueue(index) => {
+                        if index < queue.len() {
+                            queue.remove(index);
+                            if index < queue_idx {
+                                queue_idx -= 1;
+                            } else if index == queue_idx && queue_idx >= queue.len() {
+                                queue_idx = queue.len().saturating_sub(1);
+                            }
+                        }
+                    }
+                    PlaybackCommand::MoveQueueItem(from, to) => {
+                        if from < queue.len() && to < queue.len() && from != to {
+                            let song = queue.remove(from);
+                            queue.insert(to, song);
+                            if from == queue_idx {
+                                queue_idx = to;
+                            } else if from < queue_idx && to >= queue_idx {
+                                queue_idx -= 1;
+                            } else if from > queue_idx && to <= queue_idx {
+                                queue_idx += 1;
+                            }
+                        }
                     }
                 }
                 let _ = status_tx.send(status.clone()).await;
@@ -690,6 +722,46 @@ async fn run_browser_playback_loop(
                         status.current_time_secs = 0.0;
                         status.current_song = None;
                         let _ = page.evaluate("window.MusicKit && window.MusicKit.getInstance().stop();").await;
+                    }
+                    PlaybackCommand::Enqueue(songs) => {
+                        // Best-effort: append to the MusicKit queue via playLater.
+                        for song in &songs {
+                            let id = song.playback_id().to_string();
+                            let js = format!(
+                                "window.MusicKit && window.MusicKit.getInstance().playLater({{ song: '{}' }}).catch(() => {{}});",
+                                id
+                            );
+                            let _ = page.evaluate(js).await;
+                        }
+                        current_queue.extend(songs);
+                    }
+                    PlaybackCommand::RemoveFromQueue(index) => {
+                        // MusicKit's queue cannot be edited retroactively; keep
+                        // our mirrored queue in sync so Next/Previous metadata
+                        // stays consistent.
+                        if index < current_queue.len() {
+                            current_queue.remove(index);
+                            if index < current_queue_idx {
+                                current_queue_idx -= 1;
+                            } else if index == current_queue_idx
+                                && current_queue_idx >= current_queue.len()
+                            {
+                                current_queue_idx = current_queue.len().saturating_sub(1);
+                            }
+                        }
+                    }
+                    PlaybackCommand::MoveQueueItem(from, to) => {
+                        if from < current_queue.len() && to < current_queue.len() && from != to {
+                            let song = current_queue.remove(from);
+                            current_queue.insert(to, song);
+                            if from == current_queue_idx {
+                                current_queue_idx = to;
+                            } else if from < current_queue_idx && to >= current_queue_idx {
+                                current_queue_idx -= 1;
+                            } else if from > current_queue_idx && to <= current_queue_idx {
+                                current_queue_idx += 1;
+                            }
+                        }
                     }
                 }
                 let _ = status_tx.send(status.clone()).await;

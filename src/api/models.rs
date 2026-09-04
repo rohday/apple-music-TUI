@@ -11,6 +11,16 @@ pub struct Song {
     pub release_date: Option<String>,
     pub url: Option<String>,
     pub catalog_id: Option<String>,
+    pub artwork_url: Option<String>,
+}
+
+impl Song {
+    /// Resolved artwork URL at a fixed reasonable size, if available.
+    pub fn resolved_artwork_url(&self) -> Option<String> {
+        self.artwork_url
+            .as_deref()
+            .map(|u| u.replace("{w}x{h}", "300x300"))
+    }
 }
 
 impl Song {
@@ -64,6 +74,12 @@ struct SongAttributes {
     url: Option<String>,
     #[serde(rename = "playParams")]
     play_params: Option<PlayParams>,
+    artwork: Option<ArtworkAttributes>,
+}
+
+#[derive(Deserialize)]
+struct ArtworkAttributes {
+    url: Option<String>,
 }
 
 impl<'de> Deserialize<'de> for Song {
@@ -81,6 +97,7 @@ impl<'de> Deserialize<'de> for Song {
             release_date: None,
             url: None,
             play_params: None,
+            artwork: None,
         });
 
         let cat_id = attrs
@@ -99,6 +116,7 @@ impl<'de> Deserialize<'de> for Song {
             release_date: attrs.release_date,
             url: attrs.url,
             catalog_id: cat_id,
+            artwork_url: attrs.artwork.and_then(|a| a.url),
         })
     }
 }

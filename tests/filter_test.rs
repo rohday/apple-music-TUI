@@ -16,6 +16,7 @@ fn test_filter_matches_songs_and_resets() {
             release_date: None,
             url: None,
             catalog_id: None,
+            artwork_url: None,
         },
         Song {
             id: "2".to_string(),
@@ -27,6 +28,7 @@ fn test_filter_matches_songs_and_resets() {
             release_date: None,
             url: None,
             catalog_id: None,
+            artwork_url: None,
         },
         Song {
             id: "3".to_string(),
@@ -38,6 +40,7 @@ fn test_filter_matches_songs_and_resets() {
             release_date: None,
             url: None,
             catalog_id: None,
+            artwork_url: None,
         },
     ];
 

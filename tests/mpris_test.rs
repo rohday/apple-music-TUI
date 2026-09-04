@@ -44,6 +44,7 @@ async fn test_mpris_playback_status_and_metadata() {
             release_date: None,
             url: None,
             catalog_id: None,
+            artwork_url: None,
         });
         st.volume = 90;
     }
@@ -56,10 +57,7 @@ async fn test_mpris_playback_status_and_metadata() {
     let meta = player.metadata().await.unwrap();
     assert_eq!(meta.title(), Some("Save Your Tears"));
     assert_eq!(meta.album(), Some("After Hours"));
-    assert_eq!(
-        meta.artist(),
-        Some(vec!["The Weeknd".to_string()])
-    );
+    assert_eq!(meta.artist(), Some(vec!["The Weeknd".to_string()]));
 
     let vol = player.volume().await.unwrap();
     assert!((vol - 0.90).abs() < 0.01);

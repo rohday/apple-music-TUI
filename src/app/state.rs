@@ -1,5 +1,14 @@
 use crate::api::models::{Album, Artist, Playlist, SearchResults, Song};
 use crate::playback::types::PlaybackStatus;
+use std::collections::HashMap;
+
+/// Playback action deferred by an effect, executed by the main loop which owns
+/// the playback engine handle.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PendingPlayback {
+    /// Start playing the queue at the given index.
+    QueueStart(usize),
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ActiveView {
@@ -101,6 +110,21 @@ pub struct AppState {
     pub lyrics_song_id: Option<String>,
     pub anim_time: f64,
     pub last_tick_instant: std::time::Instant,
+
+    // Async job pipeline & cache
+    pub pending_jobs: Vec<crate::app::job::Job>,
+    pub cache: crate::app::cache::DataCache,
+    pub pending_playback: Option<PendingPlayback>,
+
+    // Library songs pagination
+    pub songs_offset: usize,
+    pub songs_has_more: bool,
+    pub songs_loading_more: bool,
+
+    // In-memory artwork cache (song id -> decoded cover image)
+    pub artwork: HashMap<String, image::RgbImage>,
+    pub artwork_loading: std::collections::HashSet<String>,
+    pub show_now_playing: bool,
 }
 
 impl Default for AppState {
@@ -147,7 +171,68 @@ impl AppState {
             lyrics_song_id: None,
             anim_time: 0.0,
             last_tick_instant: std::time::Instant::now(),
+            pending_jobs: Vec::new(),
+            cache: crate::app::cache::DataCache::default(),
+            pending_playback: None,
+            songs_offset: 0,
+            songs_has_more: false,
+            songs_loading_more: false,
+            artwork: HashMap::new(),
+            artwork_loading: std::collections::HashSet::new(),
+            show_now_playing: false,
         }
+    }
+
+    /// Enqueues a background job and marks the UI as loading.
+    pub fn enqueue_job(&mut self, job: crate::app::job::Job) {
+        self.pending_jobs.push(job);
+        self.is_loading = true;
+    }
+
+    /// Removes the queue entry at `idx` (Queue view `d` key).
+    pub fn remove_from_queue(&mut self, idx: usize) -> Option<Song> {
+        if idx < self.queue.len() {
+            let song = self.queue.remove(idx);
+            if self.selected_index >= self.queue.len() && !self.queue.is_empty() {
+                self.selected_index = self.queue.len() - 1;
+            }
+            Some(song)
+        } else {
+            None
+        }
+    }
+
+    /// Moves the queue entry at `idx` up (`up = true`) or down one slot.
+    /// Returns true when the move happened.
+    pub fn move_queue_item(&mut self, idx: usize, up: bool) -> bool {
+        let (from, to) = if up {
+            match idx.checked_sub(1) {
+                Some(prev) => (idx, prev),
+                None => return false,
+            }
+        } else {
+            (idx, idx + 1)
+        };
+        if to >= self.queue.len() || from == to {
+            return false;
+        }
+        self.queue.swap(from, to);
+        if up {
+            self.selected_index = self.selected_index.saturating_sub(1);
+        } else if self.selected_index + 1 < self.queue.len() {
+            self.selected_index += 1;
+        }
+        true
+    }
+
+    /// True when the selection is close enough to the end of the library
+    /// songs list that the next page should be fetched.
+    pub fn should_fetch_next_songs_page(&self) -> bool {
+        self.active_view == ActiveView::LibrarySongs
+            && self.filter_query.is_empty()
+            && self.songs_has_more
+            && !self.songs_loading_more
+            && self.selected_index + 20 >= self.songs.len()
     }
 
     pub fn tick_animation(&mut self) {

@@ -101,14 +101,6 @@ impl Default for Theme {
 }
 
 impl Theme {
-    pub const ACCENT: Color = Color::Rgb(250, 45, 72); // Apple Music Pink/Red
-    pub const SECONDARY: Color = Color::Rgb(140, 140, 240); // Soft Purple
-    pub const TEXT_PRIMARY: Color = Color::Rgb(240, 240, 245);
-    pub const TEXT_MUTED: Color = Color::Rgb(130, 130, 140);
-    pub const BORDER_FOCUSED: Color = Color::Rgb(250, 45, 72);
-    pub const BORDER_UNFOCUSED: Color = Color::Rgb(60, 60, 70);
-    pub const HIGHLIGHT_BG: Color = Color::Rgb(40, 40, 50);
-
     pub fn title_style(&self) -> Style {
         Style::default()
             .fg(self.accent)

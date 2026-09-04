@@ -40,6 +40,7 @@ fn test_ui_draw_with_songs_and_playback() {
         release_date: Some("2019-11-29".to_string()),
         url: None,
         catalog_id: None,
+        artwork_url: None,
     };
     state.songs = vec![song.clone()];
     state.focused_panel = FocusedPanel::MainContent;
@@ -112,6 +113,7 @@ fn test_ui_draw_modals() {
             release_date: None,
             url: None,
             catalog_id: None,
+            artwork_url: None,
         },
     };
     terminal
@@ -138,6 +140,7 @@ fn test_ui_draw_scrolled_table_renders_selected_row() {
             release_date: None,
             url: None,
             catalog_id: None,
+            artwork_url: None,
         })
         .collect();
 
@@ -184,6 +187,7 @@ fn test_ui_draw_expanded_visualizer_preserves_library() {
         release_date: None,
         url: None,
         catalog_id: None,
+        artwork_url: None,
     };
     state.songs = vec![song.clone()];
     state.focused_panel = FocusedPanel::MainContent;
@@ -224,4 +228,3 @@ fn test_ui_draw_expanded_visualizer_preserves_library() {
         "Expanded player bar visualizer badge must be rendered!"
     );
 }
-

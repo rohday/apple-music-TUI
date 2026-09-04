@@ -21,7 +21,9 @@ pub async fn fetch_live_developer_token() -> Result<String> {
     // Search for script bundles
     let mut js_url = None;
     for line in html.split('\"') {
-        if (line.starts_with("/assets/") || line.starts_with("/us/assets/")) && line.ends_with(".js") {
+        if (line.starts_with("/assets/") || line.starts_with("/us/assets/"))
+            && line.ends_with(".js")
+        {
             js_url = Some(format!("https://music.apple.com{}", line));
             if line.contains("index") {
                 break;

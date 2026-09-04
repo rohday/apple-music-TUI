@@ -84,4 +84,10 @@ pub enum PlaybackCommand {
     ToggleShuffle,
     CycleRepeat,
     Stop,
+    /// Append songs to the end of the current queue.
+    Enqueue(Vec<Song>),
+    /// Remove the song at `index` from the queue.
+    RemoveFromQueue(usize),
+    /// Move the song at `from` so it ends up at `to`.
+    MoveQueueItem(usize, usize),
 }

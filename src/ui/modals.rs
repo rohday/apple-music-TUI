@@ -7,6 +7,13 @@ use ratatui::Frame;
 
 pub fn render_modals(f: &mut Frame, area: Rect, state: &AppState) {
     let theme = state.theme.theme();
+
+    if state.show_now_playing {
+        if let Some(song) = &state.playback.current_song {
+            render_now_playing(f, area, state, song);
+        }
+    }
+
     match &state.modal {
         ModalState::None => {}
         ModalState::Search => {
@@ -212,6 +219,114 @@ pub fn render_modals(f: &mut Frame, area: Rect, state: &AppState) {
             f.render_widget(paragraph, popup);
         }
     }
+}
+
+/// Full "Now Playing" popup: large cover art, track info, progress. Toggled
+/// with `o`, closed with `Esc` or `o`.
+fn render_now_playing(
+    f: &mut Frame,
+    area: Rect,
+    state: &AppState,
+    song: &crate::api::models::Song,
+) {
+    let theme = state.theme.theme();
+    let popup = centered_rect(60, 80, area);
+    f.render_widget(Clear, popup);
+
+    let block = Block::default()
+        .title(Span::styled(
+            " Now Playing [o: Close] ",
+            theme.title_style(),
+        ))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme.accent));
+    let inner = block.inner(popup);
+    f.render_widget(block, popup);
+
+    if inner.height < 8 || inner.width < 12 {
+        return;
+    }
+
+    let info_rows = 3; // title, artist/album, progress+time
+    let art_budget_h = (inner.height as usize).saturating_sub(info_rows).max(1);
+    let art_budget_w = inner.width as usize;
+
+    let art_lines = state
+        .artwork
+        .get(&song.id)
+        .and_then(|img| {
+            crate::ui::art::to_half_block_cells_from_image(img, art_budget_w, art_budget_h)
+        })
+        .map(|cells| crate::ui::art::art_lines(&cells))
+        .unwrap_or_else(|| {
+            crate::ui::art::glyph_thumbnail_lines(
+                art_budget_w.min(30),
+                art_budget_h.min(6),
+                theme.accent,
+                theme.highlight_bg,
+            )
+        });
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(art_lines.len() as u16),
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Length(1),
+        ])
+        .split(inner);
+
+    let art_area = Rect {
+        height: art_lines.len() as u16,
+        ..chunks[0]
+    };
+    let paragraph = Paragraph::new(art_lines).alignment(Alignment::Center);
+    f.render_widget(paragraph, art_area);
+
+    let title = Line::from(Span::styled(
+        song.name.clone(),
+        Style::default()
+            .fg(theme.text_primary)
+            .add_modifier(Modifier::BOLD),
+    ));
+    let subtitle = Line::from(Span::styled(
+        format!(
+            "{} • {}",
+            song.artist_name,
+            song.album_name.as_deref().unwrap_or("Single")
+        ),
+        Style::default().fg(theme.text_muted),
+    ));
+
+    let progress = state.playback.progress_ratio();
+    let bar_width = (inner.width as usize).saturating_sub(2).max(1);
+    let filled = ((bar_width as f64) * progress).round() as usize;
+    let bar = Line::from(vec![
+        Span::styled("█".repeat(filled), Style::default().fg(theme.accent)),
+        Span::styled(
+            "─".repeat(bar_width.saturating_sub(filled)),
+            Style::default().fg(theme.border_unfocused),
+        ),
+    ]);
+
+    f.render_widget(
+        Paragraph::new(title).alignment(Alignment::Center),
+        chunks[1],
+    );
+    f.render_widget(
+        Paragraph::new(subtitle).alignment(Alignment::Center),
+        chunks[2],
+    );
+    f.render_widget(
+        Paragraph::new(format!(
+            "{}  [{}]",
+            bar,
+            state.playback.formatted_position()
+        ))
+        .alignment(Alignment::Center),
+        chunks[3],
+    );
 }
 
 fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {

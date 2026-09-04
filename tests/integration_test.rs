@@ -1,9 +1,14 @@
 use apple_tui::api::client::AppleMusicClient;
+use apple_tui::app::job::run_pending_jobs;
 use apple_tui::app::state::{ActiveView, AppState, FocusedPanel, ModalState};
 use apple_tui::events::handle_key_event;
 use apple_tui::playback::engine::PlaybackEngine;
 use apple_tui::playback::types::{PlaybackCommand, PlaybackState};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+fn key(code: KeyCode) -> KeyEvent {
+    KeyEvent::new(code, KeyModifiers::NONE)
+}
 
 #[tokio::test]
 async fn test_end_to_end_mock_pipeline() {
@@ -36,57 +41,33 @@ async fn test_event_handler_navigation_and_shortcuts() {
 
     // 1. Tab key to switch focus
     assert_eq!(state.focused_panel, FocusedPanel::MainContent);
-    handle_key_event(
-        KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE),
-        &mut state,
-        &client,
-        &playback,
-    )
-    .await
-    .unwrap();
+    handle_key_event(key(KeyCode::Tab), &mut state, &client, &playback)
+        .await
+        .unwrap();
     assert_eq!(state.focused_panel, FocusedPanel::Sidebar);
 
     // 2. '/' key to open search
-    handle_key_event(
-        KeyEvent::new(KeyCode::Char('/'), KeyModifiers::NONE),
-        &mut state,
-        &client,
-        &playback,
-    )
-    .await
-    .unwrap();
+    handle_key_event(key(KeyCode::Char('/')), &mut state, &client, &playback)
+        .await
+        .unwrap();
     assert_eq!(state.modal, ModalState::Search);
 
     // 3. Search typing and enter
-    handle_key_event(
-        KeyEvent::new(KeyCode::Char('t'), KeyModifiers::NONE),
-        &mut state,
-        &client,
-        &playback,
-    )
-    .await
-    .unwrap();
-    handle_key_event(
-        KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
-        &mut state,
-        &client,
-        &playback,
-    )
-    .await
-    .unwrap();
+    handle_key_event(key(KeyCode::Char('t')), &mut state, &client, &playback)
+        .await
+        .unwrap();
+    handle_key_event(key(KeyCode::Enter), &mut state, &client, &playback)
+        .await
+        .unwrap();
+    run_pending_jobs(&mut state, &client).await;
     assert_eq!(state.active_view, ActiveView::Search);
     assert!(!state.search_results.songs.is_empty());
 
     // 4. Enter on search song to play
     state.selected_index = 0;
-    handle_key_event(
-        KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
-        &mut state,
-        &client,
-        &playback,
-    )
-    .await
-    .unwrap();
+    handle_key_event(key(KeyCode::Enter), &mut state, &client, &playback)
+        .await
+        .unwrap();
 
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     let status = playback.get_current_status().await;
@@ -106,14 +87,10 @@ async fn test_playlist_track_deletion_and_album_drilldown() {
     state.focused_panel = FocusedPanel::MainContent;
     state.selected_index = 0;
 
-    handle_key_event(
-        KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
-        &mut state,
-        &client,
-        &playback,
-    )
-    .await
-    .unwrap();
+    handle_key_event(key(KeyCode::Enter), &mut state, &client, &playback)
+        .await
+        .unwrap();
+    run_pending_jobs(&mut state, &client).await;
 
     assert_eq!(state.active_view, ActiveView::PlaylistDetail);
     assert!(!state.playlist_tracks.is_empty());
@@ -123,14 +100,10 @@ async fn test_playlist_track_deletion_and_album_drilldown() {
     state.selected_index = 0;
     let first_track_id = state.playlist_tracks[0].id.clone();
 
-    handle_key_event(
-        KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE),
-        &mut state,
-        &client,
-        &playback,
-    )
-    .await
-    .unwrap();
+    handle_key_event(key(KeyCode::Char('d')), &mut state, &client, &playback)
+        .await
+        .unwrap();
+    run_pending_jobs(&mut state, &client).await;
 
     assert_eq!(state.playlist_tracks.len(), initial_count - 1);
     if !state.playlist_tracks.is_empty() {

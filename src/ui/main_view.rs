@@ -50,9 +50,14 @@ pub fn render_main_view(f: &mut Frame, area: Rect, state: &AppState) {
             Span::styled(" Query: ", Style::default().fg(theme.text_muted)),
             Span::styled(
                 format!("{}_", state.filter_query),
-                Style::default().fg(theme.text_primary).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(theme.text_primary)
+                    .add_modifier(Modifier::BOLD),
             ),
-            Span::styled("  [Enter: Apply | Esc: Clear]", Style::default().fg(theme.text_muted)),
+            Span::styled(
+                "  [Enter: Apply | Esc: Clear]",
+                Style::default().fg(theme.text_muted),
+            ),
         ]);
         f.render_widget(Paragraph::new(filter_line).block(filter_block), f_area);
     }
@@ -102,7 +107,9 @@ pub fn render_main_view(f: &mut Frame, area: Rect, state: &AppState) {
                     Line::from(""),
                     Line::from(Span::styled(
                         "🔍 Apple Music Catalog Search",
-                        Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
+                        Style::default()
+                            .fg(theme.accent)
+                            .add_modifier(Modifier::BOLD),
                     )),
                     Line::from(""),
                     Line::from(Span::styled(
@@ -163,7 +170,8 @@ pub fn render_main_view(f: &mut Frame, area: Rect, state: &AppState) {
                         Cell::from(song.name.clone()),
                         Cell::from(song.artist_name.clone()),
                         Cell::from(song.album_name.clone().unwrap_or_default()),
-                        Cell::from(format!(" {} ", song.formatted_duration())),
+                        Cell::from(format!(" {} ", song.formatted_duration()))
+                            .style(Style::default().fg(theme.text_muted)),
                     ])
                     .style(row_style)
                 })

@@ -22,7 +22,10 @@ pub fn render_lyrics_panel(f: &mut Frame, area: Rect, state: &AppState) {
     if state.lyrics_loading {
         let p = Paragraph::new(vec![
             Line::from(""),
-            Line::from(Span::styled("Loading lyrics...", Style::default().fg(theme.text_muted))),
+            Line::from(Span::styled(
+                "Loading lyrics...",
+                Style::default().fg(theme.text_muted),
+            )),
         ])
         .alignment(Alignment::Center);
         f.render_widget(p, inner);

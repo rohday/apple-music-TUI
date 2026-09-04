@@ -45,7 +45,10 @@ pub fn render_shimmer_progress_bar<'a>(
 
     if filled_len == 0 {
         // Entirely unplayed thick track
-        spans.push(Span::styled(" ".repeat(width), Style::default().bg(unplayed_bg)));
+        spans.push(Span::styled(
+            " ".repeat(width),
+            Style::default().bg(unplayed_bg),
+        ));
         return Line::from(spans);
     }
 
