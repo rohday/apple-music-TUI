@@ -26,8 +26,8 @@ use tokio::sync::mpsc;
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "apple-tui",
-    version = "0.1.0",
+    name = "appletui",
+    version = env!("CARGO_PKG_VERSION"),
     about = "Fast, lightweight Apple Music TUI for Linux"
 )]
 struct Cli {
